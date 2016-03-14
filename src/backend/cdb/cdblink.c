@@ -274,6 +274,19 @@ write_qd_sync(char *cmd, void *buf, int len, struct timeval *timeout, bool *shut
 			/* we were able to rebuild the mirror entry from our shared-memory cache */
 		}
 
+		if(cdb_mirrored_entry_db->conn == NULL)
+		{
+			/* connect to mirrored QD */
+			if (!cdblink_connectQD(cdb_mirrored_entry_db))
+			{
+				elog(ERROR, "Master mirroring connect failed for entry db. %s",
+					 cdb_mirrored_entry_db->error_message.data);
+
+				cdb_mirrored_entry_db->errcode = 0;
+				resetPQExpBuffer(&cdb_mirrored_entry_db->error_message);
+			}
+		}
+		
 		conn = cdb_mirrored_entry_db->conn;
 
 		if (PQstatus(conn) != CONNECTION_OK)
