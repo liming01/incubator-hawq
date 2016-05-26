@@ -78,11 +78,12 @@ typedef FormData_pg_foreign_data_wrapper *Form_pg_foreign_data_wrapper;
  * ----------------
  */
 
-#define Natts_pg_foreign_data_wrapper				5
+#define Natts_pg_foreign_data_wrapper				6
 #define Anum_pg_foreign_data_wrapper_fdwname		1
 #define Anum_pg_foreign_data_wrapper_fdwowner		2
-#define Anum_pg_foreign_data_wrapper_fdwvalidator	3
-#define Anum_pg_foreign_data_wrapper_fdwacl			4
-#define Anum_pg_foreign_data_wrapper_fdwoptions		5
+#define Anum_pg_foreign_data_wrapper_fdwhandler		3
+#define Anum_pg_foreign_data_wrapper_fdwvalidator	4
+#define Anum_pg_foreign_data_wrapper_fdwacl			5
+#define Anum_pg_foreign_data_wrapper_fdwoptions		6
 
 #endif   /* PG_FOREIGN_DATA_WRAPPER_H */

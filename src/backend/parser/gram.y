@@ -320,6 +320,9 @@ static Node *makeIsNotDistinctFromNode(Node *expr, int position);
 				table_func_column_list scatter_clause
 %type <node>    table_value_select_clause
 
+%type <list>	opt_fdw_options fdw_options
+%type <defelt>	fdw_option
+
 %type <range>	OptTempTableName OptErrorTableName
 %type <into>	into_clause create_as_target
 
@@ -5111,7 +5114,7 @@ CreateTableSpaceStmt: CREATE TABLESPACE name OptOwner FILESPACE name
  *
  *****************************************************************************/
 
-CreateFdwStmt: CREATE FOREIGN DATA_P WRAPPER name opt_validator create_generic_options
+CreateFdwStmt: CREATE FOREIGN DATA_P WRAPPER name opt_fdw_options create_generic_options
 				{
 					CreateFdwStmt *n = makeNode(CreateFdwStmt);
 					
@@ -5120,10 +5123,27 @@ CreateFdwStmt: CREATE FOREIGN DATA_P WRAPPER name opt_validator create_generic_o
                         yyerror("syntax error");
                     }
 					n->fdwname = $5;
-					n->validator = $6;
+					n->func_options = $6;
 					n->options = $7;
 					$$ = (Node *) n;
 				}
+		;
+
+fdw_option:
+			HANDLER handler_name				{ $$ = makeDefElem("handler", (Node *)$2); }
+			| NO HANDLER						{ $$ = makeDefElem("handler", NULL); }
+			| VALIDATOR handler_name			{ $$ = makeDefElem("validator", (Node *)$2); }
+			| NO VALIDATOR						{ $$ = makeDefElem("validator", NULL); }
+		;
+
+fdw_options:
+			fdw_option							{ $$ = list_make1($1); }
+			| fdw_options fdw_option			{ $$ = lappend($1, $2); }
+		;
+
+opt_fdw_options:
+			fdw_options							{ $$ = $1; }
+			| /*EMPTY*/							{ $$ = NIL; }
 		;
 
 /*****************************************************************************
@@ -5168,7 +5188,7 @@ DropFdwStmt: DROP FOREIGN DATA_P WRAPPER name opt_drop_behavior
  *
  ****************************************************************************/
 
-AlterFdwStmt: ALTER FOREIGN DATA_P WRAPPER name validator_clause alter_generic_options
+AlterFdwStmt: ALTER FOREIGN DATA_P WRAPPER name opt_fdw_options alter_generic_options
 				{
 					AlterFdwStmt *n = makeNode(AlterFdwStmt);
 					
@@ -5177,12 +5197,11 @@ AlterFdwStmt: ALTER FOREIGN DATA_P WRAPPER name validator_clause alter_generic_o
                         yyerror("syntax error");
                     }					
 					n->fdwname = $5;
-					n->validator = $6;
-					n->change_validator = true;
+					n->func_options = $6;
 					n->options = $7;
 					$$ = (Node *) n;
 				}
-			| ALTER FOREIGN DATA_P WRAPPER name validator_clause
+			| ALTER FOREIGN DATA_P WRAPPER name fdw_options
 				{
 					AlterFdwStmt *n = makeNode(AlterFdwStmt);
 
@@ -5191,20 +5210,8 @@ AlterFdwStmt: ALTER FOREIGN DATA_P WRAPPER name validator_clause alter_generic_o
                         yyerror("syntax error");
                     }
 					n->fdwname = $5;
-					n->validator = $6;
-					n->change_validator = true;
-					$$ = (Node *) n;
-				}
-			| ALTER FOREIGN DATA_P WRAPPER name alter_generic_options
-				{
-					AlterFdwStmt *n = makeNode(AlterFdwStmt);
-
-					if (!gp_foreign_data_access)
-                    {
-                        yyerror("syntax error");
-                    }
-					n->fdwname = $5;
-					n->options = $6;
+					n->func_options = $6;
+					n->options = NIL;
 					$$ = (Node *) n;
 				}
 		;

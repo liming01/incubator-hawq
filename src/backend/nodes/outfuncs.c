@@ -2578,7 +2578,7 @@ _outCreateFdwStmt(StringInfo str, CreateFdwStmt *node)
 {
 	WRITE_NODE_TYPE("CREATEFDWSTMT");
 	WRITE_STRING_FIELD(fdwname);
-	WRITE_NODE_FIELD(validator);
+	WRITE_NODE_FIELD(func_options);
 	WRITE_NODE_FIELD(options);
 }
 
@@ -2587,8 +2587,7 @@ _outAlterFdwStmt(StringInfo str, AlterFdwStmt *node)
 {
 	WRITE_NODE_TYPE("ALTERFDWSTMT");
 	WRITE_STRING_FIELD(fdwname);
-	WRITE_NODE_FIELD(validator);
-	WRITE_BOOL_FIELD(change_validator);
+	WRITE_NODE_FIELD(func_options);
 	WRITE_NODE_FIELD(options);
 }
 

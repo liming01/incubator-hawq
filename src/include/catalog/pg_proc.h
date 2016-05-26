@@ -7819,6 +7819,10 @@ DESCR("I/O");
 DATA(insert OID = 2598 ( domain_recv  PGNSP PGUID 12 f f f f v 3 2276 f "2281 26 23" _null_ _null_ _null_ domain_recv - _null_ n ));
 DESCR("I/O");
 
+DATA(insert OID = 6122 (  fdw_handler_in	PGNSP PGUID 12 f f f f i 1 3115 f "2275" _null_ _null_ _null_ fdw_handler_in - _null_ n ));
+DESCR("I/O");
+DATA(insert OID = 6123 (  fdw_handler_out	PGNSP PGUID 12 f f t f i 1 2275 f "3115" _null_ _null_ _null_ fdw_handler_out - _null_ n ));
+DESCR("I/O");
 
 /* cryptographic */
 /* md5(text) => text */ 

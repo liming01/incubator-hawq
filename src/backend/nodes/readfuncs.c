@@ -2499,7 +2499,7 @@ _readCreateFdwStmt(void)
 	READ_LOCALS(CreateFdwStmt);
 	
 	READ_STRING_FIELD(fdwname);
-	READ_NODE_FIELD(validator);
+	READ_NODE_FIELD(func_options);
 	READ_NODE_FIELD(options);
 	
 	READ_DONE();
@@ -2511,8 +2511,7 @@ _readAlterFdwStmt(void)
 	READ_LOCALS(AlterFdwStmt);
 	
 	READ_STRING_FIELD(fdwname);
-	READ_NODE_FIELD(validator);
-	READ_BOOL_FIELD(change_validator);
+	READ_NODE_FIELD(func_options);
 	READ_NODE_FIELD(options);
 
 	READ_DONE();
