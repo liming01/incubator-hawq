@@ -4018,6 +4018,10 @@
 
  CREATE FUNCTION language_handler_out(language_handler) RETURNS cstring LANGUAGE internal IMMUTABLE STRICT AS 'language_handler_out' WITH (OID=2303, DESCRIPTION="I/O");
 
+ CREATE FUNCTION fdw_handler_in(cstring) RETURNS fdw_handler LANGUAGE internal IMMUTABLE STRICT AS 'fwd_handler_in' WITH (OID=6122, DESCRIPTION="I/O");
+
+ CREATE FUNCTION fdw_handler_out(fdw_handler) RETURNS cstring LANGUAGE internal IMMUTABLE STRICT AS 'fdw_handler_out' WITH (OID=6123, DESCRIPTION="I/O");
+
  CREATE FUNCTION internal_in(cstring) RETURNS internal LANGUAGE internal IMMUTABLE STRICT AS 'internal_in' WITH (OID=2304, DESCRIPTION="I/O");
 
  CREATE FUNCTION internal_out(internal) RETURNS cstring LANGUAGE internal IMMUTABLE STRICT AS 'internal_out' WITH (OID=2305, DESCRIPTION="I/O");

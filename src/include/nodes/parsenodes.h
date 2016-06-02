@@ -1490,20 +1490,6 @@ typedef struct CreateExternalStmt
 	
 } CreateExternalStmt;
 
-/* ----------------------
- *	Definitions for foreign tables
- * ----------------------
- */
-typedef struct CreateForeignStmt
-{
-	NodeTag		type;
-	RangeVar   *relation;		/* foreign relation to create */
-	List	   *tableElts;		/* column definitions (list of ColumnDef) */
-	char	   *srvname;		/* server name */
-	List	   *options;		/* generic options to foreign table */
-
-} CreateForeignStmt;
-
 /* ----------
  * Definitions for plain (non-FOREIGN KEY) constraints in CreateStmt
  *
@@ -1838,6 +1824,21 @@ typedef struct DropForeignServerStmt
 } DropForeignServerStmt;
 
 /* ----------------------
+ *		Create FOREIGN TABLE Statement
+ * ----------------------
+ */
+
+typedef struct CreateForeignStmt
+{
+	NodeTag		type;
+	RangeVar   *relation;		/* foreign relation to create */
+	List	   *tableElts;		/* column definitions (list of ColumnDef) */
+	char	   *srvname;		/* server name */
+	List	   *options;		/* generic options to foreign table */
+
+} CreateForeignStmt;
+
+/* ----------------------
  *		Create/Drop USER MAPPING Statements
  * ----------------------
  */
@@ -1865,6 +1866,29 @@ typedef struct DropUserMappingStmt
 	char	   *servername;		/* server name */
 	bool		missing_ok;		/* ignore missing mappings */
 } DropUserMappingStmt;
+
+/* ----------------------
+ *		Import Foreign Schema Statement
+ * ----------------------
+ */
+
+typedef enum ImportForeignSchemaType
+{
+	FDW_IMPORT_SCHEMA_ALL,		/* all relations wanted */
+	FDW_IMPORT_SCHEMA_LIMIT_TO, /* include only listed tables in import */
+	FDW_IMPORT_SCHEMA_EXCEPT	/* exclude listed tables from import */
+} ImportForeignSchemaType;
+
+typedef struct ImportForeignSchemaStmt
+{
+	NodeTag		type;
+	char	   *server_name;	/* FDW server name */
+	char	   *remote_schema;	/* remote schema name to query */
+	char	   *local_schema;	/* local schema to create objects in */
+	ImportForeignSchemaType list_type;	/* type of table list */
+	List	   *table_list;		/* List of RangeVar */
+	List	   *options;		/* list of options to pass to FDW */
+} ImportForeignSchemaStmt;
 
 /* ----------------------
  *		Create/Drop TRIGGER Statements

@@ -1358,6 +1358,20 @@ static inline void Gpmon_M_Reset(gpmon_packet_t *pkt, int nth)
 #define innerPlanState(node)                (((PlanState *)(node))->righttree)
 #define outerPlanState(node)                (((PlanState *)(node))->lefttree)
 
+/*
+ * EPQState is state for executing an EvalPlanQual recheck on a candidate
+ * tuple in ModifyTable or LockRows.  The estate and planstate fields are
+ * NULL if inactive.
+ */
+typedef struct EPQState
+{
+	EState	   *estate;			/* subsidiary EState */
+	PlanState  *planstate;		/* plan state tree ready to be executed */
+	TupleTableSlot *origslot;	/* original output tuple to be rechecked */
+	Plan	   *plan;			/* plan tree to be executed */
+	List	   *arowMarks;		/* ExecAuxRowMarks (non-locking only) */
+	int			epqParam;		/* ID of Param to force scan node re-eval */
+} EPQState;
 
 /* ----------------
  *         ResultState information
@@ -1387,6 +1401,33 @@ typedef struct RepeatState
         int repeat_count;           /* The number of repeats for the current tuple */
         ExprState *expr_state;      /* The state to evaluate the expression */
 } RepeatState;
+
+/* ----------------
+ *	 ModifyTableState information
+ * ----------------
+ */
+typedef struct ModifyTableState
+{
+	PlanState	ps;				/* its first field is NodeTag */
+	CmdType		operation;		/* INSERT, UPDATE, or DELETE */
+	bool		canSetTag;		/* do we set the command tag/es_processed? */
+	bool		mt_done;		/* are we done? */
+	PlanState **mt_plans;		/* subplans (one per target rel) */
+	int			mt_nplans;		/* number of plans in the array */
+	int			mt_whichplan;	/* which one is being executed (0..n-1) */
+	ResultRelInfo *resultRelInfo;		/* per-subplan target relations */
+	List	  **mt_arowmarks;	/* per-subplan ExecAuxRowMark lists */
+	EPQState	mt_epqstate;	/* for evaluating EvalPlanQual rechecks */
+	bool		fireBSTriggers; /* do we need to fire stmt triggers? */
+	OnConflictAction mt_onconflict;		/* ON CONFLICT type */
+	List	   *mt_arbiterindexes;		/* unique index OIDs to arbitrate
+										 * taking alt path */
+	TupleTableSlot *mt_existing;	/* slot to store existing target tuple in */
+	List	   *mt_excludedtlist;		/* the excluded pseudo relation's
+										 * tlist  */
+	TupleTableSlot *mt_conflproj;		/* CONFLICT ... SET ... projection
+										 * target */
+} ModifyTableState;
 
 /* ----------------
  *         AppendState information
@@ -1831,6 +1872,21 @@ typedef struct ValuesScanState
         int                        marked_idx;
     bool        cdb_want_ctid;  /* true => ctid is referenced in targetlist */
 } ValuesScanState;
+
+/* ----------------
+ *	 ForeignScanState information
+ *
+ *		ForeignScan nodes are used to scan foreign-data tables.
+ * ----------------
+ */
+typedef struct ForeignScanState
+{
+	ScanState	ss;				/* its first field is NodeTag */
+	List	   *fdw_recheck_quals;	/* original quals not in ss.ps.qual */
+	/* use struct pointer to avoid including fdwapi.h here */
+	struct FdwRoutine *fdwroutine;
+	void	   *fdw_state;		/* foreign-data wrapper can keep state here */
+} ForeignScanState;
 
 /* ----------------
  *         ExternalScanState information

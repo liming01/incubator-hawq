@@ -515,6 +515,7 @@ typedef enum NodeTag
 	T_FileSystemFunctionData,   /* in storage/filesystem.h */
 	T_PartitionConstraints,     /* in executor/nodePartitionSelector.h */
 	T_SelectedParts,            /* in executor/nodePartitionSelector.h */
+	T_FdwRoutine,				/* in foreign/fdwapi.h */
 
 	/* CDB: tags for random other stuff */
 	T_CdbExplain_StatHdr = 950,             /* in cdb/cdbexplain.c */
@@ -711,7 +712,18 @@ typedef enum JoinType
 	 (jointype) == JOIN_FULL || \
 	 (jointype) == JOIN_RIGHT) 
 
-
+/*
+ * OnConflictAction -
+ *	  "ON CONFLICT" clause type of query
+ *
+ * This is needed in both parsenodes.h and plannodes.h, so put it here...
+ */
+typedef enum OnConflictAction
+{
+	ONCONFLICT_NONE,			/* No "ON CONFLICT" clause */
+	ONCONFLICT_NOTHING,			/* ON CONFLICT ... DO NOTHING */
+	ONCONFLICT_UPDATE			/* ON CONFLICT ... DO UPDATE */
+} OnConflictAction;
 
 /*
  * FlowType - kinds of tuple flows in parallelized plans.

@@ -22,17 +22,17 @@
    CREATE TABLE pg_foreign_table
    with (camelcase=ForeignTable, oid=false, relid=2879, reltype_oid=6452)
    (
-   reloid      oid, -- refers to this relation's oid in pg_class
-   server      oid, -- table's foreign server
+   ftrelid      oid, -- refers to this relation's oid in pg_class
+   ftserver      oid, -- table's foreign server
    -- VARIABLE LENGTH FIELDS start here.  These fields may be NULL, too.
 
-   tbloptions    text[] -- foreign table-specific options
+   ftoptions    text[] -- foreign table-specific options
    );
 
-   create unique index on pg_foreign_table(reloid) with (indexid=3049, CamelCase=ForeignTableRelOid);
+   create unique index on pg_foreign_table(ftrelid) with (indexid=3049, CamelCase=ForeignTableRelOid);
 
-   alter table pg_foreign_table add fk reloid on pg_class(oid);
-   alter table pg_foreign_table add fk server on pg_foreign_server(oid);
+   alter table pg_foreign_table add fk ftrelid on pg_class(oid);
+   alter table pg_foreign_table add fk ftserver on pg_foreign_server(oid);
 
    TIDYCAT_ENDFAKEDEF
 */
@@ -46,13 +46,13 @@
 
 CATALOG(pg_foreign_table,2879) BKI_WITHOUT_OIDS
 {
-	Oid			reloid;			/* refers to this relation's oid in pg_class */
-	Oid			server;			/* table's foreign server */
+	Oid			ftrelid;			/* refers to this relation's oid in pg_class */
+	Oid			ftserver;			/* table's foreign server */
 
 	/*
 	 * VARIABLE LENGTH FIELDS start here.  These fields may be NULL, too.
 	 */
-	text		tbloptions[1];	/* foreign table-specific options */
+	text		ftoptions[1];	/* foreign table-specific options */
 	
 } FormData_pg_foreign_table;
 
@@ -69,9 +69,9 @@ typedef FormData_pg_foreign_table *Form_pg_foreign_table;
  */
 
 #define Natts_pg_foreign_table					3
-#define Anum_pg_foreign_table_reloid			1
-#define Anum_pg_foreign_table_server			2
-#define Anum_pg_foreign_table_tbloptions		3
+#define Anum_pg_foreign_table_ftrelid			1
+#define Anum_pg_foreign_table_ftserver			2
+#define Anum_pg_foreign_table_ftoptions		3
 
 extern void
 InsertForeignTableEntry(Oid relid, char	*servername, List *options);

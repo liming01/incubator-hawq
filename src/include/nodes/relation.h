@@ -900,6 +900,22 @@ typedef struct TidPath
 } TidPath;
 
 /*
+ * ForeignPath represents a potential scan of a foreign table
+ *
+ * fdw_private stores FDW private data about the scan.  While fdw_private is
+ * not actually touched by the core code during normal operations, it's
+ * generally a good idea to use a representation that can be dumped by
+ * nodeToString(), so that you can examine the structure during debugging
+ * with tools like pprint().
+ */
+typedef struct ForeignPath
+{
+	Path		path;
+	Path	   *fdw_outerpath;
+	List	   *fdw_private;
+} ForeignPath;
+
+/*
  * CdbMotionPath represents transmission of the child Path results
  * from a set of sending processes to a set of receiving processes.
  */
@@ -1348,6 +1364,81 @@ typedef struct InClauseInfo
 } InClauseInfo;
 
 /*
+ * "Special join" info.
+ *
+ * One-sided outer joins constrain the order of joining partially but not
+ * completely.  We flatten such joins into the planner's top-level list of
+ * relations to join, but record information about each outer join in a
+ * SpecialJoinInfo struct.  These structs are kept in the PlannerInfo node's
+ * join_info_list.
+ *
+ * Similarly, semijoins and antijoins created by flattening IN (subselect)
+ * and EXISTS(subselect) clauses create partial constraints on join order.
+ * These are likewise recorded in SpecialJoinInfo structs.
+ *
+ * We make SpecialJoinInfos for FULL JOINs even though there is no flexibility
+ * of planning for them, because this simplifies make_join_rel()'s API.
+ *
+ * min_lefthand and min_righthand are the sets of base relids that must be
+ * available on each side when performing the special join.  lhs_strict is
+ * true if the special join's condition cannot succeed when the LHS variables
+ * are all NULL (this means that an outer join can commute with upper-level
+ * outer joins even if it appears in their RHS).  We don't bother to set
+ * lhs_strict for FULL JOINs, however.
+ *
+ * It is not valid for either min_lefthand or min_righthand to be empty sets;
+ * if they were, this would break the logic that enforces join order.
+ *
+ * syn_lefthand and syn_righthand are the sets of base relids that are
+ * syntactically below this special join.  (These are needed to help compute
+ * min_lefthand and min_righthand for higher joins.)
+ *
+ * delay_upper_joins is set TRUE if we detect a pushed-down clause that has
+ * to be evaluated after this join is formed (because it references the RHS).
+ * Any outer joins that have such a clause and this join in their RHS cannot
+ * commute with this join, because that would leave noplace to check the
+ * pushed-down clause.  (We don't track this for FULL JOINs, either.)
+ *
+ * For a semijoin, we also extract the join operators and their RHS arguments
+ * and set semi_operators, semi_rhs_exprs, semi_can_btree, and semi_can_hash.
+ * This is done in support of possibly unique-ifying the RHS, so we don't
+ * bother unless at least one of semi_can_btree and semi_can_hash can be set
+ * true.  (You might expect that this information would be computed during
+ * join planning; but it's helpful to have it available during planning of
+ * parameterized table scans, so we store it in the SpecialJoinInfo structs.)
+ *
+ * jointype is never JOIN_RIGHT; a RIGHT JOIN is handled by switching
+ * the inputs to make it a LEFT JOIN.  So the allowed values of jointype
+ * in a join_info_list member are only LEFT, FULL, SEMI, or ANTI.
+ *
+ * For purposes of join selectivity estimation, we create transient
+ * SpecialJoinInfo structures for regular inner joins; so it is possible
+ * to have jointype == JOIN_INNER in such a structure, even though this is
+ * not allowed within join_info_list.  We also create transient
+ * SpecialJoinInfos with jointype == JOIN_INNER for outer joins, since for
+ * cost estimation purposes it is sometimes useful to know the join size under
+ * plain innerjoin semantics.  Note that lhs_strict, delay_upper_joins, and
+ * of course the semi_xxx fields are not set meaningfully within such structs.
+ */
+
+typedef struct SpecialJoinInfo
+{
+	NodeTag		type;
+	Relids		min_lefthand;	/* base relids in minimum LHS for join */
+	Relids		min_righthand;	/* base relids in minimum RHS for join */
+	Relids		syn_lefthand;	/* base relids syntactically within LHS */
+	Relids		syn_righthand;	/* base relids syntactically within RHS */
+	JoinType	jointype;		/* always INNER, LEFT, FULL, SEMI, or ANTI */
+	bool		lhs_strict;		/* joinclause is strict for some LHS rel */
+	bool		delay_upper_joins;		/* can't commute with upper RHS */
+	/* Remaining fields are set only for JOIN_SEMI jointype: */
+	bool		semi_can_btree; /* true if semi_operators are all btree */
+	bool		semi_can_hash;	/* true if semi_operators are all hash */
+	List	   *semi_operators; /* OIDs of equality join operators */
+	List	   *semi_rhs_exprs; /* righthand-side expressions of these ops */
+} SpecialJoinInfo;
+
+/*
  * Append-relation info.
  *
  * When we expand an inheritable table or a UNION-ALL subselect into an
@@ -1476,6 +1567,48 @@ typedef struct PlannerParamItem
 		Node	   *item;			/* the Var, Aggref, or Param */
 		Index		abslevel;		/* its absolute query level */
 	} PlannerParamItem;
+
+/*
+ * When making cost estimates for a SEMI or ANTI join, there are some
+ * correction factors that are needed in both nestloop and hash joins
+ * to account for the fact that the executor can stop scanning inner rows
+ * as soon as it finds a match to the current outer row.  These numbers
+ * depend only on the selected outer and inner join relations, not on the
+ * particular paths used for them, so it's worthwhile to calculate them
+ * just once per relation pair not once per considered path.  This struct
+ * is filled by compute_semi_anti_join_factors and must be passed along
+ * to the join cost estimation functions.
+ *
+ * outer_match_frac is the fraction of the outer tuples that are
+ *		expected to have at least one match.
+ * match_count is the average number of matches expected for
+ *		outer tuples that have at least one match.
+ */
+typedef struct SemiAntiJoinFactors
+{
+	Selectivity outer_match_frac;
+	Selectivity match_count;
+} SemiAntiJoinFactors;
+
+/*
+ * Struct for extra information passed to subroutines of add_paths_to_joinrel
+ *
+ * restrictlist contains all of the RestrictInfo nodes for restriction
+ *		clauses that apply to this join
+ * mergeclause_list is a list of RestrictInfo nodes for available
+ *		mergejoin clauses in this join
+ * sjinfo is extra info about special joins for selectivity estimation
+ * semifactors is as shown above (only valid for SEMI or ANTI joins)
+ * param_source_rels are OK targets for parameterization of result paths
+ */
+typedef struct JoinPathExtraData
+{
+	List	   *restrictlist;
+	List	   *mergeclause_list;
+	SpecialJoinInfo *sjinfo;
+	SemiAntiJoinFactors semifactors;
+	Relids		param_source_rels;
+} JoinPathExtraData;
 
 /* 
  * Partitioning meta data 

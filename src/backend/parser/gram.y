@@ -201,7 +201,7 @@ static Node *makeIsNotDistinctFromNode(Node *expr, int position);
 		CreateDomainStmt CreateExternalStmt CreateFileSpaceStmt CreateGroupStmt
 		CreateOpClassStmt CreatePLangStmt
 		CreateQueueStmt CreateSchemaStmt CreateSeqStmt CreateStmt 
-		CreateTableSpaceStmt CreateFdwStmt CreateForeignServerStmt CreateForeignStmt 
+		CreateTableSpaceStmt CreateFdwStmt CreateForeignServerStmt CreateForeignTableStmt 
 		CreateAssertStmt CreateTrigStmt 
 		CreateUserStmt CreateUserMappingStmt CreateRoleStmt
 		CreatedbStmt DeclareCursorStmt DefineStmt DeleteStmt
@@ -1038,7 +1038,7 @@ stmt :
 			| CreateFdwStmt
 			| CreateFileSpaceStmt
 			| CreateForeignServerStmt
-			| CreateForeignStmt
+			| CreateForeignTableStmt
 			| CreateFunctionStmt
 			| CreateGroupStmt
 			| CreateOpClassStmt
@@ -4557,7 +4557,7 @@ opt_with_data:
  *		NOTE: we use OptExtTableElementList, to enforce no constraints.
  *****************************************************************************/
 
-CreateForeignStmt: CREATE FOREIGN OptTemp TABLE qualified_name '(' OptExtTableElementList ')' 
+CreateForeignTableStmt: CREATE FOREIGN OptTemp TABLE qualified_name '(' OptExtTableElementList ')' 
 				   SERVER name create_generic_options
 				{
 					CreateForeignStmt *n = makeNode(CreateForeignStmt);

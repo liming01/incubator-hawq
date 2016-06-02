@@ -677,8 +677,8 @@ DATA(insert OID = 3053 (	anytable	   PGNSP PGUID -1 f p t \054 0	0 anytable_in a
 DESCR("Represents a generic TABLE value expression");
 #define ANYTABLEOID     3053
 
-DATA(insert OID = 6121 ( fdw_handler	PGNSP PGUID  4 t p t \054 0  0 fdw_handler_in fdw_handler_out - - - i p f 0 -1 0 _null_ _null_ ));
-#define FDW_HANDLEROID	6117
+DATA(insert OID = 6121 (	fdw_handler	   PGNSP PGUID 4 t p t \054 0 0 fdw_handler_in fdw_handler_out - - - i p f 0 -1 0 _null_ _null_ ));
+#define FDW_HANDLEROID	6121
 /* TIDYCAT_END_PG_TYPE_GEN */
 
 /* 

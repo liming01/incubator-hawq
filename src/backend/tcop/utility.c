@@ -961,9 +961,6 @@ ProcessUtility(Node *parsetree,
 			break;
 
 		case T_CreateForeignStmt:
-			ereport(ERROR,
-							(errcode(ERRCODE_CDB_FEATURE_NOT_YET), errmsg("Cannot support create foreign statement yet") ));
-
 			DefineForeignRelation((CreateForeignStmt *) parsetree);
 			break;
 			

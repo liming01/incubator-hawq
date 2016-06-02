@@ -29,6 +29,7 @@
    (
    fdwname       name, -- foreign-data wrapper name
    fdwowner      oid, -- FDW owner
+   fdwhandler	 oid, -- FDW handler function
    fdwvalidator  oid, -- optional validation function
 
    -- VARIABLE LENGTH FIELDS start here.
@@ -42,6 +43,7 @@
    create unique index on pg_foreign_data_wrapper(fdwname) with (indexid=3307, CamelCase=ForeignDataWrapperName, syscacheid=FOREIGNDATAWRAPPERNAME, syscache_nbuckets=8);
 
    alter table pg_foreign_data_wrapper add fk fdwowner on pg_authid(oid);
+   alter table pg_foreign_data_wrapper add fk fdwhandler on pg_proc(oid);
    alter table pg_foreign_data_wrapper add fk fdwvalidator on pg_proc(oid);
 
    TIDYCAT_ENDFAKEDEF
@@ -58,7 +60,8 @@ CATALOG(pg_foreign_data_wrapper,2898)
 {
 	NameData	fdwname;		/* foreign-data wrapper name */
 	Oid			fdwowner;		/* FDW owner */
-	Oid			fdwvalidator;	/* optional validation function */
+	Oid			fdwhandler;		/* handler function, or 0 if none */
+	Oid			fdwvalidator;	/* option validation function, or 0 if none */
 
 	/* VARIABLE LENGTH FIELDS start here. */
 

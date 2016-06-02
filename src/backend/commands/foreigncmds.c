@@ -484,7 +484,7 @@ CreateForeignDataWrapper(CreateFdwStmt *stmt)
 
 	pcqCtx = caql_beginscan(
 			caql_addrel(cqclr(&cqc), rel),
-			cql("INSERT INTO pg_foreign_data_wrapper", 
+			cql("INSERT INTO pg_foreign_data_wrapper",
 				NULL));
 
 	memset(values, 0, sizeof(values));
@@ -678,7 +678,7 @@ AlterForeignDataWrapper(AlterFdwStmt *stmt)
 
 	heap_close(rel, RowExclusiveLock);
 	heap_freetuple(tp);
-	
+
 	/* dispatch to QEs */
 	if (Gp_role == GP_ROLE_DISPATCH)
 		dispatch_statement_node((Node *) stmt, NULL, NULL, NULL);
@@ -695,7 +695,7 @@ RemoveForeignDataWrapper(DropFdwStmt *stmt)
 	Oid			fdwId;
 	ObjectAddress object;
 
-	fdwId = GetForeignDataWrapperOidByName(stmt->fdwname, true);
+	fdwId = get_foreign_data_wrapper_oid(stmt->fdwname, true);
 
 	if (!superuser())
 		ereport(ERROR,
@@ -730,7 +730,7 @@ RemoveForeignDataWrapper(DropFdwStmt *stmt)
 	object.objectSubId = 0;
 
 	performDeletion(&object, stmt->behavior);
-	
+
 	/* dispatch to QEs */
 	if (Gp_role == GP_ROLE_DISPATCH)
 		dispatch_statement_node((Node *) stmt, NULL, NULL, NULL);
@@ -804,7 +804,7 @@ CreateForeignServer(CreateForeignServerStmt *stmt)
 	rel = heap_open(ForeignServerRelationId, RowExclusiveLock);
 	pcqCtx = caql_beginscan(
 			caql_addrel(cqclr(&cqc), rel),
-			cql("INSERT INTO pg_foreign_server", 
+			cql("INSERT INTO pg_foreign_server",
 				NULL));
 
 	memset(values, 0, sizeof(values));
@@ -861,7 +861,7 @@ CreateForeignServer(CreateForeignServerStmt *stmt)
 
 	caql_endscan(pcqCtx);
 	heap_close(rel, NoLock);
-	
+
 	/* dispatch to QEs */
 	if (Gp_role == GP_ROLE_DISPATCH)
 		dispatch_statement_node((Node *) stmt, NULL, NULL, NULL);
@@ -965,7 +965,7 @@ AlterForeignServer(AlterForeignServerStmt *stmt)
 
 	heap_close(rel, RowExclusiveLock);
 	heap_freetuple(tp);
-	
+
 	/* dispatch to QEs */
 	if (Gp_role == GP_ROLE_DISPATCH)
 		dispatch_statement_node((Node *) stmt, NULL, NULL, NULL);
@@ -982,7 +982,7 @@ RemoveForeignServer(DropForeignServerStmt *stmt)
 	Oid			srvId;
 	ObjectAddress object;
 
-	srvId = GetForeignServerOidByName(stmt->servername, true);
+	srvId = get_foreign_server_oid(stmt->servername, true);
 
 	if (!OidIsValid(srvId))
 	{
@@ -1011,7 +1011,7 @@ RemoveForeignServer(DropForeignServerStmt *stmt)
 	object.objectSubId = 0;
 
 	performDeletion(&object, stmt->behavior);
-	
+
 	/* dispatch to QEs */
 	if (Gp_role == GP_ROLE_DISPATCH)
 		dispatch_statement_node((Node *) stmt, NULL, NULL, NULL);
@@ -1137,7 +1137,7 @@ CreateUserMapping(CreateUserMappingStmt *stmt)
 		values[Anum_pg_user_mapping_umoptions - 1] = useoptions;
 	else
 		nulls[Anum_pg_user_mapping_umoptions - 1] = true;
-	
+
 	tuple = caql_form_tuple(pcqCtx, values, nulls);
 
 	umId = caql_insert(pcqCtx, tuple); /* implicit update of index as well */
@@ -1160,7 +1160,7 @@ CreateUserMapping(CreateUserMappingStmt *stmt)
 
 	caql_endscan(pcqCtx);
 	heap_close(rel, NoLock);
-	
+
 	/* dispatch to QEs */
 	if (Gp_role == GP_ROLE_DISPATCH)
 		dispatch_statement_node((Node *) stmt, NULL, NULL, NULL);
@@ -1262,7 +1262,7 @@ AlterUserMapping(AlterUserMappingStmt *stmt)
 
 	heap_close(rel, RowExclusiveLock);
 	heap_freetuple(tp);
-	
+
 	/* dispatch to QEs */
 	if (Gp_role == GP_ROLE_DISPATCH)
 		dispatch_statement_node((Node *) stmt, NULL, NULL, NULL);
@@ -1342,7 +1342,7 @@ RemoveUserMapping(DropUserMappingStmt *stmt)
 	object.objectSubId = 0;
 
 	performDeletion(&object, DROP_CASCADE);
-	
+
 	/* dispatch to QEs */
 	if (Gp_role == GP_ROLE_DISPATCH)
 		dispatch_statement_node((Node *) stmt, NULL, NULL, NULL);
@@ -1367,7 +1367,7 @@ RemoveUserMappingById(Oid umId)
 
 /*******************************************************************
  * FOREIGN TABLE catalog manipulation
- * 
+ *
  * The foreign table API below is slightly different from the above
  * API. FDW, SERVER, and MAPPING are objects by themselves, and
  * creating/dropping/altering them is done directly on their
@@ -1411,31 +1411,31 @@ InsertForeignTableEntry(Oid relid, char	*servername, List *options)
 	}
 
 	fdw = GetForeignDataWrapper(srv->fdwid);
-	
+
 	/*
 	 * Insert tuple into pg_foreign_table.
 	 */
 	rel = heap_open(ForeignTableRelationId, RowExclusiveLock);
 	pcqCtx = caql_beginscan(
 			caql_addrel(cqclr(&cqc), rel),
-			cql("INSERT INTO pg_foreign_table", 
+			cql("INSERT INTO pg_foreign_table",
 				NULL));
 
 	memset(values, 0, sizeof(values));
 	memset(nulls, false, sizeof(nulls));
 
-	values[Anum_pg_foreign_table_reloid - 1] = ObjectIdGetDatum(relid);
-	values[Anum_pg_foreign_table_server - 1] = ObjectIdGetDatum(srv->serverid);
+	values[Anum_pg_foreign_table_ftrelid - 1] = ObjectIdGetDatum(relid);
+	values[Anum_pg_foreign_table_ftserver - 1] = ObjectIdGetDatum(srv->serverid);
 
 	/* Add server options */
-	tbloptions = transformGenericOptions(PointerGetDatum(NULL), 
+	tbloptions = transformGenericOptions(PointerGetDatum(NULL),
 										 options,
 										 fdw->fdwvalidator);
 
 	if (PointerIsValid(DatumGetPointer(tbloptions)))
-		values[Anum_pg_foreign_table_tbloptions - 1] = tbloptions;
+		values[Anum_pg_foreign_table_ftoptions - 1] = tbloptions;
 	else
-		nulls[Anum_pg_foreign_table_tbloptions - 1] = true;
+		nulls[Anum_pg_foreign_table_ftoptions - 1] = true;
 
 	tuple = caql_form_tuple(pcqCtx, values, nulls);
 
@@ -1466,7 +1466,7 @@ RemoveForeignTableEntry(Oid relid)
 	numDel = caql_getcount(
 			caql_addrel(cqclr(&cqc), pg_foreigntable_rel),
 			cql("DELETE FROM pg_foreign_table "
-				" WHERE reloid = :1 ",
+				" WHERE ftrelid = :1 ",
 				ObjectIdGetDatum(relid)));
 
 	if (!numDel)

@@ -677,7 +677,7 @@ objectNamesToOids(GrantObjectType objtype, List *objnames)
 			foreach(cell, objnames)
 			{
 				char	   *fdwname = strVal(lfirst(cell));
-				Oid			fdwid = GetForeignDataWrapperOidByName(fdwname, false);
+				Oid			fdwid = get_foreign_data_wrapper_oid(fdwname, false);
 
 				objects = lappend_oid(objects, fdwid);
 			}
@@ -686,7 +686,7 @@ objectNamesToOids(GrantObjectType objtype, List *objnames)
 			foreach(cell, objnames)
 			{
 				char	   *srvname = strVal(lfirst(cell));
-				Oid			srvid = GetForeignServerOidByName(srvname, false);
+				Oid			srvid = get_foreign_server_oid(srvname, false);
 
 				objects = lappend_oid(objects, srvid);
 			}

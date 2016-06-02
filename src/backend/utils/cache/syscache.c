@@ -355,6 +355,17 @@ static const struct cachedesc cacheinfo[] = {
 		},
 		32
 	},
+	{ForeignTableRelationId,	/* FOREIGNTABLEREL */
+		ForeignTableRelOidIndexId,
+		1,
+		{
+			Anum_pg_foreign_table_ftrelid,
+			0,
+			0,
+			0
+		},
+		1024
+	},
 	{IndexRelationId,					/* INDEXRELID */
 		IndexRelidIndexId,
 		1,
@@ -638,6 +649,7 @@ InitCatalogCachePhase2(void)
 		if ((IsBootstrapProcessingMode() || IsInitProcessingMode() || gp_upgrade_mode) &&
 			((cacheinfo[cacheId].reloid == ForeignDataWrapperRelationId) ||
 			 (cacheinfo[cacheId].reloid == ForeignServerRelationId) ||
+			 (cacheinfo[cacheId].reloid == ForeignTableRelationId) ||
 			 (cacheinfo[cacheId].reloid == NamespaceRelationId) ||
 			 (cacheinfo[cacheId].reloid == UserMappingRelationId)))
 		{

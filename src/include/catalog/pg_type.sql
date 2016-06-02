@@ -803,6 +803,16 @@
  ) WITH (OID=2280, TYPTYPE=PSEUDO);
 -- #define LANGUAGE_HANDLEROID		2280
 
+ CREATE TYPE fdw_handler(
+   INPUT = fdw_handler_in,
+   OUTPUT = fdw_handler_out,
+   INTERNALLENGTH = 4,
+   PASSEDBYVALUE,
+   STORAGE = plain,
+   ALIGNMENT = int4
+ ) WITH (OID=6121, TYPTYPE=PSEUDO);
+-- #define FDW_HANDLEROID		6121
+
  CREATE TYPE internal(
    INPUT = internal_in,
    OUTPUT = internal_out,

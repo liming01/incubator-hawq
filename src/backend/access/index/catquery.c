@@ -20509,14 +20509,14 @@ Oid caql_getoid_plus(cqContext *pCtx0, int *pFetchcount,
 						case 1: /* reloid */
 							result = (Oid) 
 								((Form_pg_foreign_table) 
-								 GETSTRUCT(tuple))->reloid;
+								 GETSTRUCT(tuple))->ftrelid;
 							if (pbIsNull) *pbIsNull = false;
 							break;
 						
 						case 2: /* server */
 							result = (Oid) 
 								((Form_pg_foreign_table) 
-								 GETSTRUCT(tuple))->server;
+								 GETSTRUCT(tuple))->ftserver;
 							if (pbIsNull) *pbIsNull = false;
 							break;
 				

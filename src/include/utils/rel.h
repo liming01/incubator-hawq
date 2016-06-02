@@ -229,6 +229,17 @@ typedef struct RelationData
 	void	   *rd_amcache;		/* available for use by index AM */
 
 	/*
+	 * foreign-table support
+	 *
+	 * rd_fdwroutine must point to a single memory chunk palloc'd in
+	 * CacheMemoryContext.  It will be freed and reset to NULL on a relcache
+	 * reset.
+	 */
+
+	/* use "struct" here to avoid needing to include fdwapi.h: */
+	struct FdwRoutine *rd_fdwroutine;	/* cached function pointers, or NULL */
+
+	/*
 	 * Physical file-system information.
 	 */
 	struct RelationNodeInfo rd_relationnodeinfo;
