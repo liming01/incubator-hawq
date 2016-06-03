@@ -973,65 +973,38 @@ ProcessUtility(Node *parsetree,
 			break;
 
 		case T_CreateFdwStmt:
-			ereport(ERROR,
-							(errcode(ERRCODE_CDB_FEATURE_NOT_YET), errmsg("Cannot support create foreign data wrapper statement yet") ));
-
 			CreateForeignDataWrapper((CreateFdwStmt *) parsetree);
 			break;
 
 		case T_AlterFdwStmt:
-			ereport(ERROR,
-							(errcode(ERRCODE_CDB_FEATURE_NOT_YET), errmsg("Cannot support alter foreign data wrapper statement yet") ));
-
 			AlterForeignDataWrapper((AlterFdwStmt *) parsetree);
 			break;
 
 		case T_DropFdwStmt:
-			ereport(ERROR,
-							(errcode(ERRCODE_CDB_FEATURE_NOT_YET), errmsg("Cannot support drop foreign data wrapper statement yet") ));
-
 			RemoveForeignDataWrapper((DropFdwStmt *) parsetree);
 			break;
 
 		case T_CreateForeignServerStmt:
-			ereport(ERROR,
-							(errcode(ERRCODE_CDB_FEATURE_NOT_YET), errmsg("Cannot support create server statement yet") ));
-
 			CreateForeignServer((CreateForeignServerStmt *) parsetree);
 			break;
 
 		case T_AlterForeignServerStmt:
-			ereport(ERROR,
-							(errcode(ERRCODE_CDB_FEATURE_NOT_YET), errmsg("Cannot support alter server statement yet") ));
-
 			AlterForeignServer((AlterForeignServerStmt *) parsetree);
 			break;
 
 		case T_DropForeignServerStmt:
-			ereport(ERROR,
-							(errcode(ERRCODE_CDB_FEATURE_NOT_YET), errmsg("Cannot support drop server statement yet") ));
-
 			RemoveForeignServer((DropForeignServerStmt *) parsetree);
 			break;
 
 		case T_CreateUserMappingStmt:
-			ereport(ERROR,
-							(errcode(ERRCODE_CDB_FEATURE_NOT_YET), errmsg("Cannot support create user mapping statement yet") ));
-
 			CreateUserMapping((CreateUserMappingStmt *) parsetree);
 			break;
 
 		case T_AlterUserMappingStmt:
-			ereport(ERROR,
-							(errcode(ERRCODE_CDB_FEATURE_NOT_YET), errmsg("Cannot support alter user mapping statement yet") ));
-
 			AlterUserMapping((AlterUserMappingStmt *) parsetree);
 			break;
 
 		case T_DropUserMappingStmt:
-			ereport(ERROR,
-							(errcode(ERRCODE_CDB_FEATURE_NOT_YET), errmsg("Cannot support drop user mapping statement yet") ));
-
 			RemoveUserMapping((DropUserMappingStmt *) parsetree);
 			break;
 
