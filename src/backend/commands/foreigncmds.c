@@ -454,6 +454,8 @@ CreateForeignDataWrapper(CreateFdwStmt *stmt)
 	Oid			ownerId;
 	cqContext	cqc;
 	cqContext  *pcqCtx;
+	ObjectAddress myself;
+	ObjectAddress referenced;
 
 	/* Must be super user */
 	if (!superuser())
@@ -494,18 +496,13 @@ CreateForeignDataWrapper(CreateFdwStmt *stmt)
 		DirectFunctionCall1(namein, CStringGetDatum(stmt->fdwname));
 	values[Anum_pg_foreign_data_wrapper_fdwowner - 1] = ObjectIdGetDatum(ownerId);
 
-	if (stmt->func_options)
-		fdwvalidator = lookup_fdw_validator_func(stmt->func_options);
-	else
-		fdwvalidator = InvalidOid;
-
 	/* Lookup handler and validator functions, if given */
 	parse_func_options(stmt->func_options,
 					   &handler_given, &fdwhandler,
 					   &validator_given, &fdwvalidator);
 
 	values[Anum_pg_foreign_data_wrapper_fdwhandler - 1] = ObjectIdGetDatum(fdwhandler);
-	values[Anum_pg_foreign_data_wrapper_fdwvalidator - 1] = fdwvalidator;
+	values[Anum_pg_foreign_data_wrapper_fdwvalidator - 1] = ObjectIdGetDatum(fdwvalidator);
 
 	nulls[Anum_pg_foreign_data_wrapper_fdwacl - 1] = true;
 
@@ -523,15 +520,19 @@ CreateForeignDataWrapper(CreateFdwStmt *stmt)
 
 	heap_freetuple(tuple);
 
-	if (fdwvalidator)
+	/* record dependencies */
+	myself.classId = ForeignDataWrapperRelationId;
+	myself.objectId = fdwId;
+	myself.objectSubId = 0;
+	if (OidIsValid(fdwhandler))
 	{
-		ObjectAddress myself;
-		ObjectAddress referenced;
-
-		myself.classId = ForeignDataWrapperRelationId;
-		myself.objectId = fdwId;
-		myself.objectSubId = 0;
-
+		referenced.classId = ProcedureRelationId;
+		referenced.objectId = fdwvalidator;
+		referenced.objectSubId = 0;
+		recordDependencyOn(&myself, &referenced, DEPENDENCY_NORMAL);
+	}
+	if (OidIsValid(fdwvalidator))
+	{
 		referenced.classId = ProcedureRelationId;
 		referenced.objectId = fdwvalidator;
 		referenced.objectSubId = 0;
@@ -542,10 +543,6 @@ CreateForeignDataWrapper(CreateFdwStmt *stmt)
 
 	caql_endscan(pcqCtx);
 	heap_close(rel, NoLock);
-
-	/* dispatch to QEs */
-	if (Gp_role == GP_ROLE_DISPATCH)
-		dispatch_statement_node((Node *) stmt, NULL, NULL, NULL);
 }
 
 
@@ -678,11 +675,6 @@ AlterForeignDataWrapper(AlterFdwStmt *stmt)
 
 	heap_close(rel, RowExclusiveLock);
 	heap_freetuple(tp);
-
-	/* dispatch to QEs */
-	if (Gp_role == GP_ROLE_DISPATCH)
-		dispatch_statement_node((Node *) stmt, NULL, NULL, NULL);
-
 }
 
 
@@ -730,11 +722,6 @@ RemoveForeignDataWrapper(DropFdwStmt *stmt)
 	object.objectSubId = 0;
 
 	performDeletion(&object, stmt->behavior);
-
-	/* dispatch to QEs */
-	if (Gp_role == GP_ROLE_DISPATCH)
-		dispatch_statement_node((Node *) stmt, NULL, NULL, NULL);
-
 }
 
 
@@ -861,11 +848,6 @@ CreateForeignServer(CreateForeignServerStmt *stmt)
 
 	caql_endscan(pcqCtx);
 	heap_close(rel, NoLock);
-
-	/* dispatch to QEs */
-	if (Gp_role == GP_ROLE_DISPATCH)
-		dispatch_statement_node((Node *) stmt, NULL, NULL, NULL);
-
 }
 
 
@@ -965,11 +947,6 @@ AlterForeignServer(AlterForeignServerStmt *stmt)
 
 	heap_close(rel, RowExclusiveLock);
 	heap_freetuple(tp);
-
-	/* dispatch to QEs */
-	if (Gp_role == GP_ROLE_DISPATCH)
-		dispatch_statement_node((Node *) stmt, NULL, NULL, NULL);
-
 }
 
 
@@ -1011,11 +988,6 @@ RemoveForeignServer(DropForeignServerStmt *stmt)
 	object.objectSubId = 0;
 
 	performDeletion(&object, stmt->behavior);
-
-	/* dispatch to QEs */
-	if (Gp_role == GP_ROLE_DISPATCH)
-		dispatch_statement_node((Node *) stmt, NULL, NULL, NULL);
-
 }
 
 
@@ -1160,10 +1132,6 @@ CreateUserMapping(CreateUserMappingStmt *stmt)
 
 	caql_endscan(pcqCtx);
 	heap_close(rel, NoLock);
-
-	/* dispatch to QEs */
-	if (Gp_role == GP_ROLE_DISPATCH)
-		dispatch_statement_node((Node *) stmt, NULL, NULL, NULL);
 }
 
 
@@ -1262,11 +1230,6 @@ AlterUserMapping(AlterUserMappingStmt *stmt)
 
 	heap_close(rel, RowExclusiveLock);
 	heap_freetuple(tp);
-
-	/* dispatch to QEs */
-	if (Gp_role == GP_ROLE_DISPATCH)
-		dispatch_statement_node((Node *) stmt, NULL, NULL, NULL);
-
 }
 
 
@@ -1342,10 +1305,6 @@ RemoveUserMapping(DropUserMappingStmt *stmt)
 	object.objectSubId = 0;
 
 	performDeletion(&object, DROP_CASCADE);
-
-	/* dispatch to QEs */
-	if (Gp_role == GP_ROLE_DISPATCH)
-		dispatch_statement_node((Node *) stmt, NULL, NULL, NULL);
 }
 
 

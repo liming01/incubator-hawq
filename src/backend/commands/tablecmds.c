@@ -1296,8 +1296,6 @@ DefineForeignRelation(CreateForeignStmt *createForeignStmt)
 {
 	CreateStmt				  *createStmt = makeNode(CreateStmt);
 	Oid						  reloid = 0;
-	bool					  shouldDispatch = (Gp_role == GP_ROLE_DISPATCH &&
-												IsNormalProcessingMode());
 	
 	/*
 	 * now set the parameters for keys/inheritance etc. Most of these are
@@ -1358,15 +1356,6 @@ DefineForeignRelation(CreateForeignStmt *createForeignStmt)
               createForeignStmt->srvname,
               createForeignStmt->options);
 
-
-  if (shouldDispatch)
-  {
-
-    /* Dispatch the statement tree to all primary and mirror segdbs.
-     * Doesn't wait for the QEs to finish execution.
-     */
-    dispatch_statement_node((Node *) createForeignStmt, NULL, NULL, NULL);
-  }
 }
 
 /* ----------------------------------------------------------------
