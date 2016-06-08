@@ -229,6 +229,25 @@ ExecAssignScanProjectionInfo(ScanState *node)
 								 node->ss_ScanTupleSlot->tts_tupleDescriptor);
 }
 
+/*
+ * ExecAssignScanProjectionInfoWithVarno
+ *		As above, but caller can specify varno expected in Vars in the tlist.
+ */
+void
+ExecAssignScanProjectionInfoWithVarno(ScanState *node, Index varno)
+{
+	Scan	   *scan = (Scan *) node->ps.plan;
+
+	if (tlist_matches_tupdesc(&node->ps,
+							  scan->plan.targetlist,
+							  varno,
+							  node->ss_ScanTupleSlot->tts_tupleDescriptor))
+		node->ps.ps_ProjInfo = NULL;
+	else
+		ExecAssignProjectionInfo(&node->ps,
+								 node->ss_ScanTupleSlot->tts_tupleDescriptor);
+}
+
 static bool
 tlist_matches_tupdesc(PlanState *ps, List *tlist, Index varno, TupleDesc tupdesc)
 {

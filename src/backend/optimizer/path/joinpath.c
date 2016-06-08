@@ -39,7 +39,7 @@
 #include "optimizer/cost.h"
 #include "optimizer/pathnode.h"
 #include "optimizer/paths.h"
-
+#include "foreign/fdwapi.h"
 #include "cdb/cdbpath.h"                        /* cdbpath_rows() */
 
 
@@ -83,6 +83,7 @@ add_paths_to_joinrel(PlannerInfo *root,
 					 JoinType jointype,
 					 List *restrictlist)
 {
+	JoinPathExtraData extra;
 	List	   *mergeclause_list = NIL;
     List       *hashclause_list;
 
@@ -177,6 +178,17 @@ add_paths_to_joinrel(PlannerInfo *root,
                                      jointype);
         }
     }
+
+	/*
+	 * 5. If inner and outer relations are foreign tables (or joins) belonging
+	 * to the same server, give the FDW a chance to push down joins.
+	 */
+	if (joinrel->fdwroutine &&
+		joinrel->fdwroutine->GetForeignJoinPaths)
+		joinrel->fdwroutine->GetForeignJoinPaths(root, joinrel,
+												 outerrel, innerrel,
+												 jointype, &extra);
+
 }
 
 /*

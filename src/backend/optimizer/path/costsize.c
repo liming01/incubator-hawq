@@ -91,7 +91,7 @@
 #include "utils/lsyscache.h"
 #include "utils/selfuncs.h"
 #include "utils/tuplesort.h"
-
+#include "foreign/fdwapi.h"
 #include "cdb/cdbpath.h"        /* cdbpath_rows() */
 
 #define LOG2(x)  (log(x) / 0.693147180559945)
@@ -2345,7 +2345,40 @@ set_baserel_size_estimates(PlannerInfo *root, RelOptInfo *rel)
 	set_rel_width(root, rel);
 }
 
+/*
+ * set_foreign_size
+ *		Set size estimates for a foreign table RTE
+ *
+ * There is not a whole lot that we can do here; the foreign-data wrapper
+ * is responsible for producing useful estimates.  We can do a decent job
+ * of estimating baserestrictcost, so we set that, and we also set up width
+ * using what will be purely datatype-driven estimates from the targetlist.
+ * There is no way to do anything sane with the rows value, so we just put
+ * a default estimate and hope that the wrapper can improve on it.  The
+ * wrapper's GetForeignRelSize function will be called momentarily.
+ *
+ * The rel's targetlist and restrictinfo list must have been constructed
+ * already.
+ */
+void
+set_foreign_size_estimates(PlannerInfo *root, RelOptInfo *rel, RangeTblEntry *rte)
+{
+	/* Mark rel with estimated output rows, width, etc */
+	/* Should only be applied to base relations */
+	Assert(rel->relid > 0);
 
+	rel->rows = 1000;			/* entirely bogus default estimate */
+
+	cost_qual_eval(&rel->baserestrictcost, rel->baserestrictinfo, root);
+
+	set_rel_width(root, rel);
+
+	/* Let FDW adjust the size estimates, if it can */
+	rel->fdwroutine->GetForeignRelSize(root, rel, rte->relid);
+
+	/* ... but do not let it set the rows estimate to zero */
+	rel->rows = clamp_row_est(rel->rows);
+}
 
 /*
  * adjust_selectivity_for_nulltest

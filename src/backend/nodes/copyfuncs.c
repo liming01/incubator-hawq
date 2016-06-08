@@ -733,6 +733,33 @@ _copyValuesScan(ValuesScan *from)
 }
 
 /*
+ * _copyForeignScan
+ */
+static ForeignScan *
+_copyForeignScan(const ForeignScan *from)
+{
+	ForeignScan *newnode = makeNode(ForeignScan);
+
+	/*
+	 * copy node superclass fields
+	 */
+	CopyScanFields((const Scan *) from, (Scan *) newnode);
+
+	/*
+	 * copy remainder of node
+	 */
+	COPY_SCALAR_FIELD(fs_server);
+	COPY_NODE_FIELD(fdw_exprs);
+	COPY_NODE_FIELD(fdw_private);
+	COPY_NODE_FIELD(fdw_scan_tlist);
+	COPY_NODE_FIELD(fdw_recheck_quals);
+	COPY_BITMAPSET_FIELD(fs_relids);
+	COPY_SCALAR_FIELD(fsSystemCol);
+
+	return newnode;
+}
+
+/*
  * CopyJoinFields
  *
  *		This function copies the fields of the Join node.  It is used by
@@ -4490,6 +4517,9 @@ copyObject(void *from)
 			break;
 		case T_ValuesScan:
 			retval = _copyValuesScan(from);
+			break;
+		case T_ForeignScan:
+			retval = _copyForeignScan(from);
 			break;
 		case T_Join:
 			retval = _copyJoin(from);

@@ -133,6 +133,7 @@ extern void cost_mergejoin(MergePath *path, PlannerInfo *root);
 extern void cost_hashjoin(HashPath *path, PlannerInfo *root);
 extern void cost_qual_eval(QualCost *cost, List *quals, PlannerInfo *root);
 extern void set_baserel_size_estimates(PlannerInfo *root, RelOptInfo *rel);
+extern void set_foreign_size_estimates(PlannerInfo *root, RelOptInfo *rel, RangeTblEntry *rte);
 extern void set_joinrel_size_estimates(PlannerInfo *root, RelOptInfo *rel,
 						   RelOptInfo *outer_rel,
 						   RelOptInfo *inner_rel,

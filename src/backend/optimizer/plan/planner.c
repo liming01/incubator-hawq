@@ -543,7 +543,7 @@ resource_negotiator(Query *parse, int cursorOptions, ParamListInfo boundParams,
     }else{
     		find_udf(my_parse, &udf_context);
     		if(udf_context.udf_exist){
-    			if ((resourceLife == QRL_ONCE)) {
+    			if (resourceLife == QRL_ONCE) {
     				int64 mincost = min_cost_for_each_query;
     				mincost <<= 20;
     				int avgSliceNum = 3;
@@ -680,7 +680,7 @@ standard_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 	/* final cleanup of the plan */
 	Assert(glob->finalrtable == NIL);
 	Assert(parse == root->parse);
-	top_plan = set_plan_references(glob, top_plan, root->parse->rtable);
+	top_plan = set_plan_references(root, top_plan, root->parse->rtable);
 	/* ... and the subplans (both regular subplans and initplans) */
 	Assert(list_length(glob->subplans) == list_length(glob->subrtables));
 	forboth(lp, glob->subplans, lr, glob->subrtables)
@@ -688,7 +688,7 @@ standard_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 		Plan	   *subplan = (Plan *) lfirst(lp);
 		List	   *subrtable = (List *) lfirst(lr);
 		
-		lfirst(lp) = set_plan_references(glob, subplan, subrtable);
+		lfirst(lp) = set_plan_references(root, subplan, subrtable);
 	}
 
 	/* executor wants to know total number of Params used overall */

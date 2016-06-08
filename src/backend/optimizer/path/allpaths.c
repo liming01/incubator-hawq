@@ -56,7 +56,7 @@
 #include "parser/parsetree.h"
 #include "rewrite/rewriteManip.h"
 #include "utils/lsyscache.h"
-
+#include "foreign/fdwapi.h"
 #include "cdb/cdbllize.h"                   /* repartitionPlan */
 #include "cdb/cdbmutate.h"                  /* cdbmutate_warn_ctid_without_segid */
 #include "cdb/cdbpath.h"                    /* cdbpath_rows() */
@@ -72,6 +72,8 @@ static void set_base_rel_pathlists(PlannerInfo *root);
 static void set_rel_pathlist(PlannerInfo *root, RelOptInfo *rel, Index rti);
 static void set_plain_rel_pathlist(PlannerInfo *root, RelOptInfo *rel,
 					   RangeTblEntry *rte);
+static void set_foreign_pathlist(PlannerInfo *root, RelOptInfo *rel,
+					 RangeTblEntry *rte);
 static void set_append_rel_pathlist(PlannerInfo *root, RelOptInfo *rel,
 						Index rti);
 static bool has_multiple_baserels(PlannerInfo *root);
@@ -283,8 +285,12 @@ set_plain_rel_pathlist(PlannerInfo *root, RelOptInfo *rel, RangeTblEntry *rte)
     ListCell   *cell;
 	char		relstorage;
 
+	relstorage = get_rel_relstorage(rte->relid);
 	/* Mark rel with estimated output rows, width, etc */
-	set_baserel_size_estimates(root, rel);
+	if(RELSTORAGE_FOREIGN == relstorage)
+		set_foreign_size_estimates(root, rel, rte);
+	else
+		set_baserel_size_estimates(root, rel);
 
 	/* Test any partial indexes of rel for applicability */
 	check_partial_indexes(root, rel);
@@ -294,9 +300,12 @@ set_plain_rel_pathlist(PlannerInfo *root, RelOptInfo *rel, RangeTblEntry *rte)
 	 * quals that are OR-of-AND structures.  If so, add them to the rel's
 	 * restriction list, and recompute the size estimates.
 	 */
-	if (create_or_index_quals(root, rel))
-		set_baserel_size_estimates(root, rel);
-
+	if (create_or_index_quals(root, rel)){
+		if(RELSTORAGE_FOREIGN == relstorage)
+			set_foreign_size_estimates(root, rel, rte);
+		else
+			set_baserel_size_estimates(root, rel);
+	}
 	/*
 	 * If we can prove we don't need to scan the rel via constraint exclusion,
 	 * set up a single dummy path for it.  (Rather than inventing a special
@@ -334,7 +343,6 @@ set_plain_rel_pathlist(PlannerInfo *root, RelOptInfo *rel, RangeTblEntry *rte)
      * in a temporary list, then add them.
 	 */
 
-	relstorage = get_rel_relstorage(rte->relid);
 	
 	/* early exit for external and append only relations */
 	switch (relstorage)
@@ -348,7 +356,9 @@ set_plain_rel_pathlist(PlannerInfo *root, RelOptInfo *rel, RangeTblEntry *rte)
 			add_path(root, rel, (Path *) create_external_path(root, rel));			
 			set_cheapest(root, rel);
 			return;
-
+		case RELSTORAGE_FOREIGN:
+			set_foreign_pathlist(root, rel, rte);
+			break;
 		case RELSTORAGE_AOROWS:
 			seqpath = (Path *) create_appendonly_path(root, rel);
 			break;
@@ -423,6 +433,17 @@ set_plain_rel_pathlist(PlannerInfo *root, RelOptInfo *rel, RangeTblEntry *rte)
 
 	/* Now find the cheapest of the paths for this rel */
 	set_cheapest(root, rel);
+}
+
+/*
+ * set_foreign_pathlist
+ *		Build access paths for a foreign table RTE
+ */
+static void
+set_foreign_pathlist(PlannerInfo *root, RelOptInfo *rel, RangeTblEntry *rte)
+{
+	/* Call the FDW's GetForeignPaths function to generate path(s) */
+	rel->fdwroutine->GetForeignPaths(root, rel, rte->relid);
 }
 
 /*

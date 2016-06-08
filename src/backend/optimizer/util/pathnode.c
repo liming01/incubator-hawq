@@ -1198,7 +1198,42 @@ create_external_path(PlannerInfo *root, RelOptInfo *rel)
 	return pathnode;
 }
 
+/*
+ * create_foreignscan_path
+ *	  Creates a path corresponding to a scan of a foreign table or
+ *	  a foreign join, returning the pathnode.
+ *
+ * This function is never called from core Postgres; rather, it's expected
+ * to be called by the GetForeignPaths or GetForeignJoinPaths function of
+ * a foreign data wrapper.  We make the FDW supply all fields of the path,
+ * since we do not have any way to calculate them in core.
+ */
+ForeignPath *
+create_foreignscan_path(PlannerInfo *root, RelOptInfo *rel,
+						double rows, Cost startup_cost, Cost total_cost,
+						List *pathkeys,
+						Relids required_outer,
+						Path *fdw_outerpath,
+						List *fdw_private)
+{
+	ForeignPath *pathnode = makeNode(ForeignPath);
 
+	pathnode->path.pathtype = T_ForeignScan;
+	pathnode->path.parent = rel;
+	pathnode->path.pathkeys = pathkeys;
+
+    pathnode->path.locus = cdbpathlocus_from_baserel(root, rel);
+    pathnode->path.motionHazard = false;
+	pathnode->path.rescannable = rel->isrescannable;
+
+	pathnode->path.startup_cost = startup_cost;
+	pathnode->path.total_cost = total_cost;
+
+	pathnode->fdw_outerpath = fdw_outerpath;
+	pathnode->fdw_private = fdw_private;
+
+	return pathnode;
+}
 /*
  * create_index_path
  *	  Creates a path node for an index scan.

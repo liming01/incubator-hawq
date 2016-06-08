@@ -316,6 +316,7 @@ typedef TupleTableSlot *(*ExecScanAccessMtd) (ScanState *node);
 
 extern TupleTableSlot *ExecScan(ScanState *node, ExecScanAccessMtd accessMtd);
 extern void ExecAssignScanProjectionInfo(ScanState *node);
+extern void ExecAssignScanProjectionInfoWithVarno(ScanState *node, Index varno);
 extern void InitScanStateRelationDetails(ScanState *scanState, Plan *plan, EState *estate);
 extern void InitScanStateInternal(ScanState *scanState, Plan *plan,
 	EState *estate, int eflags, bool initCurrentRelation);

@@ -485,6 +485,12 @@ typedef struct RelOptInfo
 	bool		isrescannable; /* true for ext tables false for ext web tables */
 	bool		writable;	   /* true for writable, false for readable ext tables*/
 	
+	/* Information about foreign tables and foreign joins */
+	Oid			serverid;		/* identifies server for the table or join */
+	/* use "struct FdwRoutine" to avoid including fdwapi.h here */
+	struct FdwRoutine *fdwroutine;
+	void	   *fdw_private;
+
 	/* used by various scans and joins: */
 	List	   *baserestrictinfo;		/* RestrictInfo structures (if base
 										 * rel) */

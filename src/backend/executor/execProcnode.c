@@ -835,6 +835,7 @@ ExecProcNode(PlanState *node)
 		&&Exec_Jmp_FunctionScan,
 		&&Exec_Jmp_TableFunctionScan,
 		&&Exec_Jmp_ValuesScan,
+		&&Exec_Jmp_ForeignScan,
 		&&Exec_Jmp_NestLoop,
 		&&Exec_Jmp_MergeJoin,
 		&&Exec_Jmp_HashJoin,
@@ -953,6 +954,10 @@ Exec_Jmp_TableFunctionScan:
 
 Exec_Jmp_ValuesScan:
 	result = ExecValuesScan((ValuesScanState *) node);
+	goto Exec_Jmp_Done;
+
+Exec_Jmp_ForeignScan:
+	result = ExecForeignScan((ForeignScanState *) node);
 	goto Exec_Jmp_Done;
 
 Exec_Jmp_NestLoop:
@@ -1121,6 +1126,9 @@ Exec_Jmp_Done:
 			result = ExecBitmapAppendOnlyScan((BitmapAppendOnlyScanState *) node);
 			break;
 			
+		case T_ForeignScanState:
+			result = ExecForeignScan((ForeignScanState *) node);
+			break;
 			/*
 			 * join nodes
 			 */
@@ -1652,6 +1660,9 @@ ExecEndNode(PlanState *node)
 			ExecEndValuesScan((ValuesScanState *) node);
 			break;
 
+		case T_ForeignScanState:
+			ExecEndForeignScan((ForeignScanState *) node);
+			break;
 			/*
 			 * join nodes
 			 */

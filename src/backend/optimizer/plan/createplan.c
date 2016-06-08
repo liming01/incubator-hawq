@@ -59,7 +59,7 @@
 #include "parser/parsetree.h"
 #include "parser/parse_oper.h"     /* ordering_oper_opid */
 #include "utils/lsyscache.h"
-
+#include "foreign/fdwapi.h"
 #include "cdb/cdbgroup.h"       /* adapt_flow_to_targetlist() */
 #include "cdb/cdblink.h"        /* getgphostCount() */
 #include "cdb/cdbllize.h"       /* pull_up_Flow() */
@@ -111,6 +111,8 @@ static SubqueryScan *create_subqueryscan_plan(CreatePlanContext *ctx, Path *best
 						 List *tlist, List *scan_clauses);
 static SubqueryScan *create_ctescan_plan(CreatePlanContext *ctx, Path *best_path,
 										 List *tlist, List *scan_clauses);
+static ForeignScan *create_foreignscan_plan(CreatePlanContext *ctx, ForeignPath *best_path,
+						List *tlist, List *scan_clauses);
 static FunctionScan *create_functionscan_plan(CreatePlanContext *ctx, Path *best_path,
 						 List *tlist, List *scan_clauses);
 static TableFunctionScan *create_tablefunction_plan(CreatePlanContext *ctx, 
@@ -414,6 +416,13 @@ create_scan_plan(CreatePlanContext *ctx, Path *best_path)
 												tlist,
 												scan_clauses);
 			
+			break;
+
+		case T_ForeignScan:
+			plan = (Plan *) create_foreignscan_plan(ctx,
+													best_path,
+													tlist,
+													scan_clauses);
 			break;
 
 		default:
@@ -2440,6 +2449,126 @@ create_ctescan_plan(CreatePlanContext *ctx, Path *best_path,
 	
 }
 
+
+/*
+ * create_foreignscan_plan
+ *	 Returns a foreignscan plan for the relation scanned by 'best_path'
+ *	 with restriction clauses 'scan_clauses' and targetlist 'tlist'.
+ */
+static ForeignScan *
+create_foreignscan_plan(CreatePlanContext *ctx, ForeignPath *best_path,
+						List *tlist, List *scan_clauses)
+{
+	ForeignScan *scan_plan;
+	RelOptInfo *rel = best_path->path.parent;
+	Index		scan_relid = rel->relid;
+	Oid			rel_oid = InvalidOid;
+	Bitmapset  *attrs_used = NULL;
+	Plan	   *outer_plan = NULL;
+	ListCell   *lc;
+	int			i;
+	PlannerInfo *root=ctx->root;
+
+	Assert(rel->fdwroutine != NULL);
+
+	/* transform the child path if any */
+	if (best_path->fdw_outerpath)
+		outer_plan = create_subplan(ctx, best_path->fdw_outerpath);
+
+	/*
+	 * If we're scanning a base relation, fetch its OID.  (Irrelevant if
+	 * scanning a join relation.)
+	 */
+	if (scan_relid > 0)
+	{
+		RangeTblEntry *rte;
+
+		Assert(rel->rtekind == RTE_RELATION);
+		rte = planner_rt_fetch(scan_relid, root);
+		Assert(rte->rtekind == RTE_RELATION);
+		rel_oid = rte->relid;
+	}
+
+	/*
+	 * Sort clauses into best execution order.  We do this first since the FDW
+	 * might have more info than we do and wish to adjust the ordering.
+	 */
+	scan_clauses = order_qual_clauses(root, scan_clauses);
+
+	/*
+	 * Let the FDW perform its processing on the restriction clauses and
+	 * generate the plan node.  Note that the FDW might remove restriction
+	 * clauses that it intends to execute remotely, or even add more (if it
+	 * has selected some join clauses for remote use but also wants them
+	 * rechecked locally).
+	 */
+	scan_plan = rel->fdwroutine->GetForeignPlan(root, rel, rel_oid,
+												best_path,
+												tlist, scan_clauses,
+												outer_plan);
+
+	/* Copy cost data from Path to Plan; no need to make FDW do this */
+	copy_path_costsize(root, &scan_plan->scan.plan, &best_path->path);
+
+	/* Copy foreign server OID; likewise, no need to make FDW do this */
+	scan_plan->fs_server = rel->serverid;
+
+	/* Likewise, copy the relids that are represented by this foreign scan */
+	scan_plan->fs_relids = best_path->path.parent->relids;
+
+	/*
+	 * Replace any outer-relation variables with nestloop params in the qual
+	 * and fdw_exprs expressions.  We do this last so that the FDW doesn't
+	 * have to be involved.  (Note that parts of fdw_exprs could have come
+	 * from join clauses, so doing this beforehand on the scan_clauses
+	 * wouldn't work.)  We assume fdw_scan_tlist contains no such variables.
+	 */
+//	if (best_path->path.param_info)
+//	{
+//		scan_plan->scan.plan.qual = (List *)
+//			replace_nestloop_params(root, (Node *) scan_plan->scan.plan.qual);
+//		scan_plan->fdw_exprs = (List *)
+//			replace_nestloop_params(root, (Node *) scan_plan->fdw_exprs);
+//		scan_plan->fdw_recheck_quals = (List *)
+//			replace_nestloop_params(root,
+//									(Node *) scan_plan->fdw_recheck_quals);
+//	}
+
+	/*
+	 * Detect whether any system columns are requested from rel.  This is a
+	 * bit of a kluge and might go away someday, so we intentionally leave it
+	 * out of the API presented to FDWs.
+	 *
+	 * First, examine all the attributes needed for joins or final output.
+	 * Note: we must look at reltargetlist, not the attr_needed data, because
+	 * attr_needed isn't computed for inheritance child rels.
+	 */
+	pull_varattnos((Node *) rel->reltargetlist, rel->relid, &attrs_used);
+
+	/* Add all the attributes used by restriction clauses. */
+	foreach(lc, rel->baserestrictinfo)
+	{
+		RestrictInfo *rinfo = (RestrictInfo *) lfirst(lc);
+
+		pull_varattnos((Node *) rinfo->clause, rel->relid, &attrs_used);
+	}
+
+	/* Now, are any system columns requested from rel? */
+	scan_plan->fsSystemCol = false;
+	for (i = FirstLowInvalidHeapAttributeNumber + 1; i < 0; i++)
+	{
+		if (bms_is_member(i - FirstLowInvalidHeapAttributeNumber, attrs_used))
+		{
+			scan_plan->fsSystemCol = true;
+			break;
+		}
+	}
+
+	bms_free(attrs_used);
+
+	return scan_plan;
+}
+
 /*
  * create_functionscan_plan
  *	 Returns a functionscan plan for the base relation scanned by 'best_path'
@@ -3687,6 +3816,38 @@ make_valuesscan(List *qptlist,
 	return node;
 }
 
+ForeignScan *
+make_foreignscan(List *qptlist,
+				 List *qpqual,
+				 Index scanrelid,
+				 List *fdw_exprs,
+				 List *fdw_private,
+				 List *fdw_scan_tlist,
+				 List *fdw_recheck_quals,
+				 Plan *outer_plan)
+{
+	ForeignScan *node = makeNode(ForeignScan);
+	Plan	   *plan = &node->scan.plan;
+
+	/* cost will be filled in by create_foreignscan_plan */
+	plan->targetlist = qptlist;
+	plan->qual = qpqual;
+	plan->lefttree = outer_plan;
+	plan->righttree = NULL;
+	node->scan.scanrelid = scanrelid;
+	/* fs_server will be filled in by create_foreignscan_plan */
+	node->fs_server = InvalidOid;
+	node->fdw_exprs = fdw_exprs;
+	node->fdw_private = fdw_private;
+	node->fdw_scan_tlist = fdw_scan_tlist;
+	node->fdw_recheck_quals = fdw_recheck_quals;
+	/* fs_relids will be filled in by create_foreignscan_plan */
+	node->fs_relids = NULL;
+	/* fsSystemCol will be filled in by create_foreignscan_plan */
+	node->fsSystemCol = false;
+
+	return node;
+}
 Append *
 make_append(List *appendplans, bool isTarget, List *tlist)
 {

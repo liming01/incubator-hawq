@@ -225,6 +225,7 @@ DESCR("");
 #define		  RELKIND_AOBLOCKDIR	  'b'		/* AO block directory */
 #define		  RELKIND_VIEW		  'v'		/* view */
 #define		  RELKIND_COMPOSITE_TYPE  'c'		/* composite type */
+#define		  RELKIND_FOREIGN_TABLE   'f'		/* foreign table */
 
 /*
  * relstorage describes how a relkind is physically stored in the database.

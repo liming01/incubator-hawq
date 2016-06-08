@@ -323,6 +323,18 @@ get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
 
 	rel->indexlist = indexinfos;
 
+	/* Grab foreign-table info using the relcache, while we have it */
+	if (relation->rd_rel->relkind == RELKIND_FOREIGN_TABLE)
+	{
+		rel->serverid = GetForeignServerIdByRelId(RelationGetRelid(relation));
+		rel->fdwroutine = GetFdwRoutineForRelation(relation, true);
+	}
+	else
+	{
+		rel->serverid = InvalidOid;
+		rel->fdwroutine = NULL;
+	}
+
 	heap_close(relation, NoLock);
 }
 

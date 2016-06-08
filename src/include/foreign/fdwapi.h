@@ -164,7 +164,7 @@ typedef struct FdwRoutine
 	IsForeignRelUpdatable_function IsForeignRelUpdatable;
 
 	/* Functions for SELECT FOR UPDATE/SHARE row locking */
-	//GetForeignRowMarkType_function GetForeignRowMarkType;
+//	GetForeignRowMarkType_function GetForeignRowMarkType;
 	RefetchForeignRow_function RefetchForeignRow;
 	RecheckForeignScan_function RecheckForeignScan;
 

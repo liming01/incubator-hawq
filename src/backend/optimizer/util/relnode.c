@@ -118,6 +118,9 @@ build_simple_rel(PlannerInfo *root, int relid, RelOptKind reloptkind)
 	rel->ext_encoding = -1;
 	rel->isrescannable = true;
 	rel->writable = false;
+	rel->serverid = InvalidOid;
+	rel->fdwroutine = NULL;
+	rel->fdw_private = NULL;
 	rel->baserestrictinfo = NIL;
 	rel->baserestrictcost.startup = 0;
 	rel->baserestrictcost.per_tuple = 0;
@@ -393,12 +396,26 @@ build_join_rel(PlannerInfo *root,
 	joinrel->tuples = 0;
 	joinrel->subplan = NULL;
 	joinrel->subrtable = NIL;
+	joinrel->serverid = InvalidOid;
+	joinrel->fdwroutine = NULL;
+	joinrel->fdw_private = NULL;
 	joinrel->baserestrictinfo = NIL;
 	joinrel->baserestrictcost.startup = 0;
 	joinrel->baserestrictcost.per_tuple = 0;
 	joinrel->joininfo = NIL;
 	joinrel->index_outer_relids = NULL;
 	joinrel->index_inner_paths = NIL;
+
+	/*
+	 * Set up foreign-join fields if outer and inner relation are foreign
+	 * tables (or joins) belonging to the same server.
+	 */
+	if (OidIsValid(outer_rel->serverid) &&
+		inner_rel->serverid == outer_rel->serverid)
+	{
+		joinrel->serverid = outer_rel->serverid;
+		joinrel->fdwroutine = outer_rel->fdwroutine;
+	}
 
     /* CDB: Join between single-row inputs produces a single-row joinrel. */
     if (outer_rel->onerow && inner_rel->onerow)

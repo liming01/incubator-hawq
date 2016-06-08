@@ -67,13 +67,13 @@ typedef struct
 
 typedef struct
 	{
-		PlannerGlobal *glob;
+		PlannerGlobal *root;
 		int			rtoffset;
 	} fix_scan_expr_context;
 
 typedef struct
 	{
-		PlannerGlobal *glob;
+		PlannerGlobal *root;
 		indexed_tlist *outer_itlist;
 		indexed_tlist *inner_itlist;
 		Index		skip_rel;
@@ -84,7 +84,7 @@ typedef struct
 
 typedef struct
 	{
-		PlannerGlobal *glob;
+		PlannerInfo *root;
 		indexed_tlist *subplan_itlist;
 		int			rtoffset;
 		bool		use_scan_slot;
@@ -102,21 +102,24 @@ typedef struct
 (((con)->consttype == REGCLASSOID || (con)->consttype == OIDOID) && \
 !(con)->constisnull)
 
-#define fix_scan_list(glob, lst, rtoffset) \
-((List *) fix_scan_expr(glob, (Node *) (lst), rtoffset))
+#define fix_scan_list(root, lst, rtoffset) \
+((List *) fix_scan_expr(root, (Node *) (lst), rtoffset))
 
-static Plan *set_plan_refs(PlannerGlobal *glob, Plan *plan, int rtoffset);
-static Plan *set_subqueryscan_references(PlannerGlobal *glob,
+static Plan *set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset);
+static Plan *set_subqueryscan_references(PlannerInfo *root,
 										 SubqueryScan *plan,
 										 int rtoffset);
 static bool trivial_subqueryscan(SubqueryScan *plan);
-static Node *fix_scan_expr(PlannerGlobal *glob, Node *node, int rtoffset);
+static void set_foreignscan_references(PlannerInfo *root,
+						   ForeignScan *fscan,
+						   int rtoffset);
+static Node *fix_scan_expr(PlannerInfo *root, Node *node, int rtoffset);
 static Node *fix_scan_expr_mutator(Node *node, fix_scan_expr_context *context);
 static bool fix_scan_expr_walker(Node *node, fix_scan_expr_context *context);
 static void set_join_references(PlannerGlobal *glob, Join *join, int rtoffset);
 static void set_inner_join_references(PlannerGlobal *glob, Plan *inner_plan,
 									  indexed_tlist *outer_itlist, int rtoffset);
-static void set_upper_references(PlannerGlobal *glob, Plan *plan, int rtoffset,
+static void set_upper_references(PlannerInfo *root, Plan *plan, int rtoffset,
 								 bool use_scan_slot);
 static void set_dummy_tlist_references(Plan *plan, int rtoffset, bool use_child_targets);
 static indexed_tlist *build_tlist_index(List *tlist);
@@ -146,7 +149,7 @@ static List *fix_child_hashclauses(PlannerGlobal *glob,
                            indexed_tlist *inner_itlist,
                            Index skip_rel, int rtoffset,
                            Index child);
-static Node *fix_upper_expr(PlannerGlobal *glob,
+static Node *fix_upper_expr(PlannerInfo *root,
 							Node *node,
 							indexed_tlist *subplan_itlist,
 							int rtoffset,
@@ -156,7 +159,7 @@ static Node *fix_upper_expr_mutator(Node *node,
 static bool fix_opfuncids_walker(Node *node, void *context);
 static void set_sa_opfuncid(ScalarArrayOpExpr *opexpr);
 static  bool cdb_expr_requires_full_eval(Node *node);
-static Plan *cdb_insert_result_node(PlannerGlobal *glob, 
+static Plan *cdb_insert_result_node(PlannerInfo *root,
 									Plan *plan, 
 									int rtoffset);
 static void record_plan_function_dependency(PlannerGlobal *glob, 
@@ -179,15 +182,15 @@ extern bool is_plan_node(Node *node);
 /**
  * This method establishes asserts on the inputs to set_plan_references.
  */
-static void set_plan_references_input_asserts(PlannerGlobal *glob, Plan *plan, List *rtable)
+static void set_plan_references_input_asserts(PlannerGlobal *root, Plan *plan, List *rtable)
 {
-	Assert(glob);
+	Assert(root);
 	Assert(plan);
 	
 	/* Note that rtable MAY be NULL */	
 	
 	/* Ensure that plan refers to vars that have varlevelsup = 0 AND varno is in the rtable */
-	List *allVars = extract_nodes(glob, (Node *) plan, T_Var);
+	List *allVars = extract_nodes(root, (Node *) plan, T_Var);
 	ListCell *lc = NULL;
 	
 	foreach (lc, allVars)
@@ -202,7 +205,7 @@ static void set_plan_references_input_asserts(PlannerGlobal *glob, Plan *plan, L
 		 * its current rtable.
 		 */
 		Assert((var->varno == OUTER
-				|| (var->varno > 0 && var->varno <= list_length(rtable) + list_length(glob->finalrtable)))
+				|| (var->varno > 0 && var->varno <= list_length(rtable) + list_length(root->finalrtable)))
 				&& "Plan contains var that refer outside the rtable.");
 		Assert(var->varno == var->varnoold && "Varno and varnoold do not agree!");
 
@@ -218,15 +221,15 @@ static void set_plan_references_input_asserts(PlannerGlobal *glob, Plan *plan, L
 	}
 	
 	/* Ensure that all params that the plan refers to has a corresponding subplan */
-	List *allParams = extract_nodes(glob, (Node *) plan, T_Param);
+	List *allParams = extract_nodes(root, (Node *) plan, T_Param);
 			
 	foreach (lc, allParams)
 	{
 		Param *param = lfirst(lc);
 		if (param->paramkind == PARAM_EXEC)
 		{
-			Assert(param->paramid < list_length(glob->paramlist) && "Parameter ID outside range of parameters known at the global level.");
-			PlannerParamItem *paramItem = list_nth(glob->paramlist, param->paramid);
+			Assert(param->paramid < list_length(root->paramlist) && "Parameter ID outside range of parameters known at the global level.");
+			PlannerParamItem *paramItem = list_nth(root->paramlist, param->paramid);
 			Assert(paramItem);
 						
 			if (IsA(paramItem->item, Var))
@@ -252,12 +255,12 @@ static void set_plan_references_input_asserts(PlannerGlobal *glob, Plan *plan, L
 /**
  * This method establishes asserts on the output of set_plan_references.
  */
-static void set_plan_references_output_asserts(PlannerGlobal *glob, Plan *plan)
+static void set_plan_references_output_asserts(PlannerGlobal *root, Plan *plan)
 {
 	/**
 	 * Ensure that all OpExprs have regproc OIDs.
 	 */
-	List *allOpExprs = extract_nodes(glob, (Node *) plan, T_OpExpr);
+	List *allOpExprs = extract_nodes(root, (Node *) plan, T_OpExpr);
 	
 	ListCell *lc = NULL;
 	
@@ -271,7 +274,7 @@ static void set_plan_references_output_asserts(PlannerGlobal *glob, Plan *plan)
 	 * All vars should be INNER or OUTER or point to a relation in the glob->finalrtable.
 	 */
 	
-	List *allVars = extract_nodes(glob, (Node *) plan, T_Var);
+	List *allVars = extract_nodes(root, (Node *) plan, T_Var);
 	
 	foreach (lc, allVars)
 	{
@@ -280,15 +283,15 @@ static void set_plan_references_output_asserts(PlannerGlobal *glob, Plan *plan)
 		Assert((var->varno == INNER
 				|| var->varno == OUTER
 				|| var->varno == 0		/* GPDB uses 0 for scan tuple slot. */
-				|| (var->varno > 0 && var->varno <= list_length(glob->finalrtable)))
+				|| (var->varno > 0 && var->varno <= list_length(root->finalrtable)))
 				&& "Plan contains var that refer outside the rtable.");
 
 		Assert(var->varattno > FirstLowInvalidHeapAttributeNumber && "Invalid attribute number in plan");		
 
-		if (var->varno > 0 && var->varno <= list_length(glob->finalrtable))
+		if (var->varno > 0 && var->varno <= list_length(root->finalrtable))
 		{
 			List *colNames = NULL;
-			RangeTblEntry *rte = rt_fetch(var->varno, glob->finalrtable);
+			RangeTblEntry *rte = rt_fetch(var->varno, root->finalrtable);
 			Assert(rte && "Invalid RTE");
 			Assert(rte->rtekind != RTE_VOID && "Var points to a void RTE!");
 			
@@ -301,13 +304,13 @@ static void set_plan_references_output_asserts(PlannerGlobal *glob, Plan *plan)
 	}
 
 	/** All subquery scan nodes should have their scanrelids point to a subquery entry in the finalrtable */
-	List *allSubQueryScans = extract_nodes(glob, (Node *) plan, T_SubqueryScan);
+	List *allSubQueryScans = extract_nodes(root, (Node *) plan, T_SubqueryScan);
 	
 	foreach (lc, allSubQueryScans)
 	{
 		SubqueryScan *subQueryScan = (SubqueryScan *) lfirst(lc);
-		Assert(subQueryScan->scan.scanrelid <= list_length(glob->finalrtable) && "Subquery scan's scanrelid out of range");
-		RangeTblEntry *rte = rt_fetch(subQueryScan->scan.scanrelid, glob->finalrtable);
+		Assert(subQueryScan->scan.scanrelid <= list_length(root->finalrtable) && "Subquery scan's scanrelid out of range");
+		RangeTblEntry *rte = rt_fetch(subQueryScan->scan.scanrelid, root->finalrtable);
 		Assert((rte->rtekind == RTE_SUBQUERY || rte->rtekind == RTE_CTE) && "Subquery scan should correspond to a subquery RTE or cte RTE!");
 	}
 }
@@ -380,14 +383,15 @@ static void set_plan_references_output_asserts(PlannerGlobal *glob, Plan *plan)
  * it's not so safe to assume that for expression tree nodes.
  */
 Plan *
-set_plan_references(PlannerGlobal *glob, Plan *plan, List *rtable)
+set_plan_references(PlannerInfo *root, Plan *plan, List *rtable)
 {
+	PlannerGlobal *glob = root->glob;
 #ifdef USE_ASSERT_CHECKING
 	/* 
 	 * This method formalizes our assumptions about the input to set_plan_references.
 	 * This will hopefully, help us debug any problems.
 	 */
-	set_plan_references_input_asserts(glob, plan, rtable);
+	set_plan_references_input_asserts(root, plan, rtable);
 #endif
 	
 	int			rtoffset = list_length(glob->finalrtable);
@@ -409,9 +413,9 @@ set_plan_references(PlannerGlobal *glob, Plan *plan, List *rtable)
 		newrte = copyObject(rte);
 				
 		/** Need to fix up some of the references in the newly created newrte */
-		fix_scan_expr(glob, (Node *) newrte->funcexpr, rtoffset);
-		fix_scan_expr(glob, (Node *) newrte->joinaliasvars, rtoffset);
-		fix_scan_expr(glob, (Node *) newrte->values_lists, rtoffset);
+		fix_scan_expr(root, (Node *) newrte->funcexpr, rtoffset);
+		fix_scan_expr(root, (Node *) newrte->joinaliasvars, rtoffset);
+		fix_scan_expr(root, (Node *) newrte->values_lists, rtoffset);
 		
 		glob->finalrtable = lappend(glob->finalrtable, newrte);
 		
@@ -436,13 +440,13 @@ set_plan_references(PlannerGlobal *glob, Plan *plan, List *rtable)
 	fix_projection_incapable_nodes(plan);
 	fix_projection_incapable_nodes_in_subplans(glob, plan);
 
-	Plan *retPlan = set_plan_refs(glob, plan, rtoffset);
+	Plan *retPlan = set_plan_refs(root, plan, rtoffset);
 
 #ifdef USE_ASSERT_CHECKING
 	/**
 	 * Ensuring that the output of setrefs behaves as expected.
 	 */
-	set_plan_references_output_asserts(glob, retPlan);
+	set_plan_references_output_asserts(root, retPlan);
 #endif
 	
 	return retPlan;
@@ -452,8 +456,9 @@ set_plan_references(PlannerGlobal *glob, Plan *plan, List *rtable)
  * set_plan_refs: recurse through the Plan nodes of a single subquery level
  */
 static Plan *
-set_plan_refs(PlannerGlobal *glob, Plan *plan, const int rtoffset)
+set_plan_refs(PlannerInfo *root, Plan *plan, const int rtoffset)
 {
+	PlannerGlobal *glob = root->glob;
 	ListCell   *l = NULL;
 	
 	if (plan == NULL)
@@ -469,7 +474,7 @@ set_plan_refs(PlannerGlobal *glob, Plan *plan, const int rtoffset)
         indexed_tlist  *plan_itlist = build_tlist_index(plan->targetlist);
 		
         plan->flow->hashExpr =
-		(List *)fix_upper_expr(glob,
+		(List *)fix_upper_expr(root,
 							   (Node *)plan->flow->hashExpr,
 							   plan_itlist,
 							   rtoffset,
@@ -490,47 +495,50 @@ set_plan_refs(PlannerGlobal *glob, Plan *plan, const int rtoffset)
 			Scan    *splan = (Scan *) plan;
 			
 			if (cdb_expr_requires_full_eval((Node *)plan->targetlist))
-				return  cdb_insert_result_node(glob, plan, rtoffset);
+				return  cdb_insert_result_node(root, plan, rtoffset);
 			
 			splan->scanrelid += rtoffset;
 
 			/* If the scan appears below a shareinput, we hit this assert. */
 #ifdef USE_ASSERT_CHECKING
-			Assert(splan->scanrelid <= list_length(glob->finalrtable) && "Scan node's relid is outside the finalrtable!");
-			RangeTblEntry *rte = rt_fetch(splan->scanrelid, glob->finalrtable);
+			Assert(splan->scanrelid <= list_length(root->finalrtable) && "Scan node's relid is outside the finalrtable!");
+			RangeTblEntry *rte = rt_fetch(splan->scanrelid, root->finalrtable);
 			Assert(rte->rtekind == RTE_RELATION && "Scan plan should refer to a scan relation");
 #endif
 			
 			splan->plan.targetlist =
-			fix_scan_list(glob, splan->plan.targetlist, rtoffset);
+			fix_scan_list(root, splan->plan.targetlist, rtoffset);
 			splan->plan.qual =
-			fix_scan_list(glob, splan->plan.qual, rtoffset);
+			fix_scan_list(root, splan->plan.qual, rtoffset);
 		}
+			break;
+		case T_ForeignScan:
+			set_foreignscan_references(root, (ForeignScan *) plan, rtoffset);
 			break;
 		case T_IndexScan:
 		{
 			IndexScan  *splan = (IndexScan *) plan;
 			
 			if (cdb_expr_requires_full_eval((Node *)plan->targetlist))
-				return  cdb_insert_result_node(glob, plan, rtoffset);
+				return  cdb_insert_result_node(root, plan, rtoffset);
 			
 			splan->scan.scanrelid += rtoffset;
 
 #ifdef USE_ASSERT_CHECKING
-			RangeTblEntry *rte = rt_fetch(splan->scan.scanrelid, glob->finalrtable);
+			RangeTblEntry *rte = rt_fetch(splan->scan.scanrelid, root->finalrtable);
 			char relstorage = get_rel_relstorage(rte->relid);
 			Assert(relstorage != RELSTORAGE_AOROWS &&
 				   relstorage != RELSTORAGE_PARQUET);
 #endif
 
 			splan->scan.plan.targetlist =
-			fix_scan_list(glob, splan->scan.plan.targetlist, rtoffset);
+			fix_scan_list(root, splan->scan.plan.targetlist, rtoffset);
 			splan->scan.plan.qual =
-			fix_scan_list(glob, splan->scan.plan.qual, rtoffset);
+			fix_scan_list(root, splan->scan.plan.qual, rtoffset);
 			splan->indexqual =
-			fix_scan_list(glob, splan->indexqual, rtoffset);
+			fix_scan_list(root, splan->indexqual, rtoffset);
 			splan->indexqualorig =
-			fix_scan_list(glob, splan->indexqualorig, rtoffset);
+			fix_scan_list(root, splan->indexqualorig, rtoffset);
 		}
 			break;
 		case T_BitmapIndexScan:
@@ -542,9 +550,9 @@ set_plan_refs(PlannerGlobal *glob, Plan *plan, const int rtoffset)
 			Assert(splan->scan.plan.targetlist == NIL);
 			Assert(splan->scan.plan.qual == NIL);
 			splan->indexqual =
-			fix_scan_list(glob, splan->indexqual, rtoffset);
+			fix_scan_list(root, splan->indexqual, rtoffset);
 			splan->indexqualorig =
-			fix_scan_list(glob, splan->indexqualorig, rtoffset);
+			fix_scan_list(root, splan->indexqualorig, rtoffset);
 		}
 			break;
 		case T_BitmapHeapScan:
@@ -552,22 +560,22 @@ set_plan_refs(PlannerGlobal *glob, Plan *plan, const int rtoffset)
 			BitmapHeapScan *splan = (BitmapHeapScan *) plan;
 			
 			if (cdb_expr_requires_full_eval((Node *)plan->targetlist))
-				return  cdb_insert_result_node(glob, plan, rtoffset);
+				return  cdb_insert_result_node(root, plan, rtoffset);
 			
 			splan->scan.scanrelid += rtoffset;
 
 #ifdef USE_ASSERT_CHECKING
-			RangeTblEntry *rte = rt_fetch(splan->scan.scanrelid, glob->finalrtable);
+			RangeTblEntry *rte = rt_fetch(splan->scan.scanrelid, root->finalrtable);
 			char relstorage = get_rel_relstorage(rte->relid);
 			Assert(relstorage != RELSTORAGE_AOROWS &&
 				   relstorage != RELSTORAGE_PARQUET);
 #endif
 			splan->scan.plan.targetlist =
-			fix_scan_list(glob, splan->scan.plan.targetlist, rtoffset);
+			fix_scan_list(root, splan->scan.plan.targetlist, rtoffset);
 			splan->scan.plan.qual =
-			fix_scan_list(glob, splan->scan.plan.qual, rtoffset);
+			fix_scan_list(root, splan->scan.plan.qual, rtoffset);
 			splan->bitmapqualorig =
-			fix_scan_list(glob, splan->bitmapqualorig, rtoffset);
+			fix_scan_list(root, splan->bitmapqualorig, rtoffset);
 		}
 			break;
 		case T_BitmapTableScan:
@@ -575,16 +583,16 @@ set_plan_refs(PlannerGlobal *glob, Plan *plan, const int rtoffset)
 			BitmapTableScan *splan = (BitmapTableScan *) plan;
 
 			if (cdb_expr_requires_full_eval((Node *)plan->targetlist))
-				return  cdb_insert_result_node(glob, plan, rtoffset);
+				return  cdb_insert_result_node(root, plan, rtoffset);
 
 			splan->scan.scanrelid += rtoffset;
 
 			splan->scan.plan.targetlist =
-			fix_scan_list(glob, splan->scan.plan.targetlist, rtoffset);
+			fix_scan_list(root, splan->scan.plan.targetlist, rtoffset);
 			splan->scan.plan.qual =
-			fix_scan_list(glob, splan->scan.plan.qual, rtoffset);
+			fix_scan_list(root, splan->scan.plan.qual, rtoffset);
 			splan->bitmapqualorig =
-			fix_scan_list(glob, splan->bitmapqualorig, rtoffset);
+			fix_scan_list(root, splan->bitmapqualorig, rtoffset);
 		}
 			break;
 		case T_TidScan:
@@ -592,32 +600,32 @@ set_plan_refs(PlannerGlobal *glob, Plan *plan, const int rtoffset)
 			TidScan    *splan = (TidScan *) plan;
 			
 			if (cdb_expr_requires_full_eval((Node *)plan->targetlist))
-				return  cdb_insert_result_node(glob, plan, rtoffset);
+				return  cdb_insert_result_node(root, plan, rtoffset);
 			
 			splan->scan.scanrelid += rtoffset;
 			
 #ifdef USE_ASSERT_CHECKING
 			/* We only support TidScans on heap tables currently */
-			RangeTblEntry *rte = rt_fetch(splan->scan.scanrelid, glob->finalrtable);
+			RangeTblEntry *rte = rt_fetch(splan->scan.scanrelid, root->finalrtable);
 			char relstorage = get_rel_relstorage(rte->relid);
 			Assert(relstorage == RELSTORAGE_HEAP);
 #endif
 
 			splan->scan.plan.targetlist =
-			fix_scan_list(glob, splan->scan.plan.targetlist, rtoffset);
+			fix_scan_list(root, splan->scan.plan.targetlist, rtoffset);
 			splan->scan.plan.qual =
-			fix_scan_list(glob, splan->scan.plan.qual, rtoffset);
+			fix_scan_list(root, splan->scan.plan.qual, rtoffset);
 			splan->tidquals =
-			fix_scan_list(glob, splan->tidquals, rtoffset);
+			fix_scan_list(root, splan->tidquals, rtoffset);
 		}
 			break;
 		case T_SubqueryScan:
 			
 			if (cdb_expr_requires_full_eval((Node *)plan->targetlist))
-				return  cdb_insert_result_node(glob, plan, rtoffset);
+				return  cdb_insert_result_node(root, plan, rtoffset);
 			
 			/* Needs special treatment, see comments below */
-			return set_subqueryscan_references(glob,
+			return set_subqueryscan_references(root,
 											   (SubqueryScan *) plan,
 											   rtoffset);
 		case T_TableFunctionScan:
@@ -627,10 +635,10 @@ set_plan_refs(PlannerGlobal *glob, Plan *plan, const int rtoffset)
 			List				*subrtable = tplan->subrtable;
 
 			if (cdb_expr_requires_full_eval((Node *)plan->targetlist))
-				return  cdb_insert_result_node(glob, plan, rtoffset);
+				return  cdb_insert_result_node(root, plan, rtoffset);
 
 			/* recursively process the subplan */
-			plan->lefttree = set_plan_references(glob, subplan, subrtable);
+			plan->lefttree = set_plan_references(root, subplan, subrtable);
 			
 			/* subrtable is no longer needed in the plan tree */
 			tplan->subrtable = NIL;
@@ -638,9 +646,9 @@ set_plan_refs(PlannerGlobal *glob, Plan *plan, const int rtoffset)
 			/* adjust for the new range table offset */
 			tplan->scan.scanrelid += rtoffset;
 			tplan->scan.plan.targetlist =
-				fix_scan_list(glob, tplan->scan.plan.targetlist, rtoffset);
+				fix_scan_list(root, tplan->scan.plan.targetlist, rtoffset);
 			tplan->scan.plan.qual =
-				fix_scan_list(glob, tplan->scan.plan.qual, rtoffset);
+				fix_scan_list(root, tplan->scan.plan.qual, rtoffset);
 
 			return plan;
 		}
@@ -649,13 +657,13 @@ set_plan_refs(PlannerGlobal *glob, Plan *plan, const int rtoffset)
 			FunctionScan *splan = (FunctionScan *) plan;
 			
 			if (cdb_expr_requires_full_eval((Node *)plan->targetlist))
-				return  cdb_insert_result_node(glob, plan, rtoffset);
+				return  cdb_insert_result_node(root, plan, rtoffset);
 			
 			splan->scan.scanrelid += rtoffset;
 			splan->scan.plan.targetlist =
-				fix_scan_list(glob, splan->scan.plan.targetlist, rtoffset);
+				fix_scan_list(root, splan->scan.plan.targetlist, rtoffset);
 			splan->scan.plan.qual =
-				fix_scan_list(glob, splan->scan.plan.qual, rtoffset);
+				fix_scan_list(root, splan->scan.plan.qual, rtoffset);
 		}
 		break;
 		case T_ValuesScan:
@@ -663,20 +671,20 @@ set_plan_refs(PlannerGlobal *glob, Plan *plan, const int rtoffset)
 			ValuesScan *splan = (ValuesScan *) plan;
 			
 			if (cdb_expr_requires_full_eval((Node *)plan->targetlist))
-				return  cdb_insert_result_node(glob, plan, rtoffset);
+				return  cdb_insert_result_node(root, plan, rtoffset);
 			
 			splan->scan.scanrelid += rtoffset;
 			splan->scan.plan.targetlist =
-				fix_scan_list(glob, splan->scan.plan.targetlist, rtoffset);
+				fix_scan_list(root, splan->scan.plan.targetlist, rtoffset);
 			splan->scan.plan.qual =
-				fix_scan_list(glob, splan->scan.plan.qual, rtoffset);
+				fix_scan_list(root, splan->scan.plan.qual, rtoffset);
 		}
 			break;
 		case T_NestLoop:
 		case T_MergeJoin:
 		case T_HashJoin:
 			if (cdb_expr_requires_full_eval((Node *)plan->targetlist))
-				return  cdb_insert_result_node(glob, plan, rtoffset);
+				return  cdb_insert_result_node(root, plan, rtoffset);
 			set_join_references(glob, (Join *) plan, rtoffset);
 			break;
 			
@@ -703,9 +711,9 @@ set_plan_refs(PlannerGlobal *glob, Plan *plan, const int rtoffset)
 			Assert(splan->plan.qual == NIL);
 
 			splan->limitOffset =
-					fix_scan_expr(glob, splan->limitOffset, rtoffset);
+					fix_scan_expr(root, splan->limitOffset, rtoffset);
 			splan->limitCount =
-					fix_scan_expr(glob, splan->limitCount, rtoffset);
+					fix_scan_expr(root, splan->limitCount, rtoffset);
 		}
 		break;
 
@@ -740,7 +748,7 @@ set_plan_refs(PlannerGlobal *glob, Plan *plan, const int rtoffset)
 			{
 				Assert(sisc->share_type != SHARE_NOTSHARED 
 					   && sisc->share_id >= 0 
-					   && glob->share.sharedNodes); 
+					   && root->share.sharedNodes);
 				childPlan = list_nth(glob->share.sharedNodes, sisc->share_id);
 			}
 			
@@ -777,16 +785,16 @@ set_plan_refs(PlannerGlobal *glob, Plan *plan, const int rtoffset)
 			Assert(splan->plan.qual == NIL);
 			
 			splan->limitOffset =
-			fix_scan_expr(glob, splan->limitOffset, rtoffset);
+			fix_scan_expr(root, splan->limitOffset, rtoffset);
 			splan->limitCount =
-			fix_scan_expr(glob, splan->limitCount, rtoffset);
+			fix_scan_expr(root, splan->limitCount, rtoffset);
 		}
 			break;
 		case T_Agg:
-			set_upper_references(glob, plan, rtoffset, true);
+			set_upper_references(root, plan, rtoffset, true);
 			break;
 		case T_Window:
-			set_upper_references(glob, plan, rtoffset, true);
+			set_upper_references(root, plan, rtoffset, true);
 			if ( plan->targetlist == NIL )
 				set_dummy_tlist_references(plan, rtoffset, true);
 		{
@@ -812,11 +820,11 @@ set_plan_refs(PlannerGlobal *glob, Plan *plan, const int rtoffset)
 					 */
 					if (window_edge_is_delayed(frame->trail))
 						frame->trail->val =
-							fix_upper_expr(glob, frame->trail->val,
+							fix_upper_expr(root, frame->trail->val,
 										   subplan_itlist, rtoffset, true);
 					if (window_edge_is_delayed(frame->lead))
 						frame->lead->val =
-							fix_upper_expr(glob, frame->lead->val,
+							fix_upper_expr(root, frame->lead->val,
 										   subplan_itlist, rtoffset, true);
 				}
 			}
@@ -833,20 +841,20 @@ set_plan_refs(PlannerGlobal *glob, Plan *plan, const int rtoffset)
 			 */
 			if (splan->plan.lefttree != NULL)
 			{
-				set_upper_references(glob, plan, rtoffset, false);
+				set_upper_references(root, plan, rtoffset, false);
 			}
 			splan->plan.targetlist =
-					fix_scan_list(glob, splan->plan.targetlist, rtoffset);
+					fix_scan_list(root, splan->plan.targetlist, rtoffset);
 			splan->plan.qual =
-					fix_scan_list(glob, splan->plan.qual, rtoffset);
+					fix_scan_list(root, splan->plan.qual, rtoffset);
 
 			/* resconstantqual can't contain any subplan variable refs */
 			splan->resconstantqual =
-			fix_scan_expr(glob, splan->resconstantqual, rtoffset);
+			fix_scan_expr(root, splan->resconstantqual, rtoffset);
 		}
 			break;
 		case T_Repeat:
-			set_upper_references(glob, plan, rtoffset, false); /* GPDB code uses OUTER. */
+			set_upper_references(root, plan, rtoffset, false); /* GPDB code uses OUTER. */
 			break;
 		case T_Append:
 		{
@@ -860,7 +868,7 @@ set_plan_refs(PlannerGlobal *glob, Plan *plan, const int rtoffset)
 			Assert(splan->plan.qual == NIL);
 			foreach(l, splan->appendplans)
 			{
-				lfirst(l) = set_plan_refs(glob,
+				lfirst(l) = set_plan_refs(root,
 										  (Plan *) lfirst(l),
 										  rtoffset);
 			}
@@ -875,7 +883,7 @@ set_plan_refs(PlannerGlobal *glob, Plan *plan, const int rtoffset)
 			Assert(splan->plan.qual == NIL);
 			foreach(l, splan->bitmapplans)
 			{
-				lfirst(l) = set_plan_refs(glob,
+				lfirst(l) = set_plan_refs(root,
 										  (Plan *) lfirst(l),
 										  rtoffset);
 			}
@@ -890,7 +898,7 @@ set_plan_refs(PlannerGlobal *glob, Plan *plan, const int rtoffset)
 			Assert(splan->plan.qual == NIL);
 			foreach(l, splan->bitmapplans)
 			{
-				lfirst(l) = set_plan_refs(glob,
+				lfirst(l) = set_plan_refs(root,
 										  (Plan *) lfirst(l),
 										  rtoffset);
 			}
@@ -905,7 +913,7 @@ set_plan_refs(PlannerGlobal *glob, Plan *plan, const int rtoffset)
 			build_tlist_index(plan->lefttree->targetlist);
 			
 			motion->hashExpr = (List *)
-			fix_upper_expr(glob, (Node*) motion->hashExpr, childplan_itlist, rtoffset, false);
+			fix_upper_expr(root, (Node*) motion->hashExpr, childplan_itlist, rtoffset, false);
 
 #ifdef USE_ASSERT_CHECKING
 			
@@ -949,8 +957,8 @@ set_plan_refs(PlannerGlobal *glob, Plan *plan, const int rtoffset)
 	 * plan's var nodes against the already-modified nodes of the children.
 	 *
 	 */
-	plan->lefttree = set_plan_refs(glob, plan->lefttree, rtoffset);
-	plan->righttree = set_plan_refs(glob, plan->righttree, rtoffset);
+	plan->lefttree = set_plan_refs(root, plan->lefttree, rtoffset);
+	plan->righttree = set_plan_refs(root, plan->righttree, rtoffset);
 	
 	return plan;
 }
@@ -963,14 +971,14 @@ set_plan_refs(PlannerGlobal *glob, Plan *plan, const int rtoffset)
  * to do the normal processing on it.
  */
 static Plan *
-set_subqueryscan_references(PlannerGlobal *glob,
+set_subqueryscan_references(PlannerInfo *root,
 							SubqueryScan *plan,
 							int rtoffset)
 {
 	Plan	   *result;
 	
 	/* First, recursively process the subplan */
-	plan->subplan = set_plan_references(glob, plan->subplan, plan->subrtable);
+	plan->subplan = set_plan_references(root, plan->subplan, plan->subrtable);
 	
 	/* subrtable is no longer needed in the plan tree */
 	plan->subrtable = NIL;
@@ -1019,9 +1027,9 @@ set_subqueryscan_references(PlannerGlobal *glob,
 		//Assert(plan->scan.scanrelid <= list_length(glob->finalrtable) && "Scan node's relid is outside the finalrtable!");
 		
 		plan->scan.plan.targetlist =
-		fix_scan_list(glob, plan->scan.plan.targetlist, rtoffset);
+		fix_scan_list(root, plan->scan.plan.targetlist, rtoffset);
 		plan->scan.plan.qual =
-		fix_scan_list(glob, plan->scan.plan.qual, rtoffset);
+		fix_scan_list(root, plan->scan.plan.qual, rtoffset);
 		
 		result = (Plan *) plan;
 	}
@@ -1087,6 +1095,78 @@ trivial_subqueryscan(SubqueryScan *plan)
 	}
 	
 	return true;
+}
+
+/*
+ * set_foreignscan_references
+ *	   Do set_plan_references processing on a ForeignScan
+ */
+static void
+set_foreignscan_references(PlannerInfo *root,
+						   ForeignScan *fscan,
+						   int rtoffset)
+{
+	/* Adjust scanrelid if it's valid */
+	if (fscan->scan.scanrelid > 0)
+		fscan->scan.scanrelid += rtoffset;
+
+	if (fscan->fdw_scan_tlist != NIL || fscan->scan.scanrelid == 0)
+	{
+		/* Adjust tlist, qual, fdw_exprs to reference custom scan tuple */
+		indexed_tlist *itlist = build_tlist_index(fscan->fdw_scan_tlist);
+
+		fscan->scan.plan.targetlist = (List *)
+			fix_upper_expr(root,
+						   (Node *) fscan->scan.plan.targetlist,
+						   itlist,
+						   rtoffset,
+						   true);
+		fscan->scan.plan.qual = (List *)
+			fix_upper_expr(root,
+						   (Node *) fscan->scan.plan.qual,
+						   itlist,
+						   rtoffset,
+						   true);
+		fscan->fdw_exprs = (List *)
+			fix_upper_expr(root,
+						   (Node *) fscan->fdw_exprs,
+						   itlist,
+						   rtoffset,
+						   true);
+		fscan->fdw_recheck_quals = (List *)
+			fix_upper_expr(root,
+						   (Node *) fscan->fdw_recheck_quals,
+						   itlist,
+						   rtoffset,
+						   true);
+		pfree(itlist);
+		/* fdw_scan_tlist itself just needs fix_scan_list() adjustments */
+		fscan->fdw_scan_tlist =
+			fix_scan_list(root, fscan->fdw_scan_tlist, rtoffset);
+	}
+	else
+	{
+		/* Adjust tlist, qual, fdw_exprs, etc. in the standard way */
+		fscan->scan.plan.targetlist =
+			fix_scan_list(root, fscan->scan.plan.targetlist, rtoffset);
+		fscan->scan.plan.qual =
+			fix_scan_list(root, fscan->scan.plan.qual, rtoffset);
+		fscan->fdw_exprs =
+			fix_scan_list(root, fscan->fdw_exprs, rtoffset);
+		fscan->fdw_recheck_quals =
+			fix_scan_list(root, fscan->fdw_recheck_quals, rtoffset);
+	}
+
+	/* Adjust fs_relids if needed */
+	if (rtoffset > 0)
+	{
+		Bitmapset  *tempset = NULL;
+		int			x = -1;
+
+		while ((x = bms_next_member(fscan->fs_relids, x)) >= 0)
+			tempset = bms_add_member(tempset, x + rtoffset);
+		fscan->fs_relids = tempset;
+	}
 }
 
 /*
@@ -1186,7 +1266,7 @@ fix_expr_common(PlannerGlobal *glob, Node *node)
         {
             Assert(var->varlevelsup == 0 &&
                    var->varno > 0 &&
-                   var->varno <= list_length(glob->finalrtable));
+                   var->varno <= list_length(root->finalrtable));
         }
     }
 }
@@ -1202,11 +1282,11 @@ fix_expr_common(PlannerGlobal *glob, Node *node)
  * TODO: rename to reflect functionality more accurately.
  */
 static Node *
-fix_scan_expr(PlannerGlobal *glob, Node *node, int rtoffset)
+fix_scan_expr(PlannerInfo *root, Node *node, int rtoffset)
 {
 	fix_scan_expr_context context;
 	
-	context.glob = glob;
+	context.root = root;
 	context.rtoffset = rtoffset;
 	
 	node = fix_scan_expr_mutator(node, &context);
@@ -1244,7 +1324,7 @@ fix_scan_expr_mutator(Node *node, fix_scan_expr_context *context)
             Node 				   *exprCopy = NULL;
             
             /* Look up the pseudo column definition. */
-            rte = rt_fetch(var->varno, context->glob->finalrtable);
+            rte = rt_fetch(var->varno, context->root->finalrtable);
             rci = cdb_rte_find_pseudo_column(rte, var->varattno);
             Assert(rci && rci->defexpr && "No expression for pseudo column");
 
@@ -1261,7 +1341,7 @@ fix_scan_expr_mutator(Node *node, fix_scan_expr_context *context)
         }
 	}
 
-	fix_expr_common(context->glob, node);
+	fix_expr_common(context->root, node);
 
 	return expression_tree_mutator(node, fix_scan_expr_mutator,
 								   (void *) context);
@@ -1272,7 +1352,7 @@ fix_scan_expr_walker(Node *node, fix_scan_expr_context *context)
 {
 	if (node == NULL)
 		return false;
-	fix_expr_common(context->glob, node);
+	fix_expr_common(context->root, node);
 	return expression_tree_walker(node, fix_scan_expr_walker,
 								  (void *) context);
 }
@@ -1571,7 +1651,7 @@ set_inner_join_references(PlannerGlobal *glob, Plan *inner_plan,
  * the expression.
  */
 static void
-set_upper_references(PlannerGlobal *glob, Plan *plan, 
+set_upper_references(PlannerInfo *root, Plan *plan,
 					 int rtoffset, bool use_scan_slot )
 {
 	Plan	   *subplan = plan->lefttree;
@@ -1591,7 +1671,7 @@ set_upper_references(PlannerGlobal *glob, Plan *plan,
 				IsA(tle->expr, GroupId))
 			newexpr = copyObject(tle->expr);
 		else
-			newexpr = fix_upper_expr(glob,
+			newexpr = fix_upper_expr(root,
 					(Node *) tle,
 					subplan_itlist,
 					rtoffset,
@@ -1603,7 +1683,7 @@ set_upper_references(PlannerGlobal *glob, Plan *plan,
 	plan->targetlist = output_targetlist;
 	
 	plan->qual = (List *)
-	fix_upper_expr(glob,
+	fix_upper_expr(root,
 				   (Node *) plan->qual,
 				   subplan_itlist,
 				   rtoffset,
@@ -1914,7 +1994,7 @@ fix_join_expr(PlannerGlobal *glob,
 {
 	fix_join_expr_context context;
 	
-	context.glob = glob;
+	context.root = glob;
 	context.outer_itlist = outer_itlist;
 	context.inner_itlist = inner_itlist;
 	context.skip_rel = skip_rel;
@@ -2009,7 +2089,7 @@ fix_child_hashclauses(PlannerGlobal *glob,
               Index child)
 {
     fix_join_expr_context context;
-    context.glob = glob;
+    context.root = glob;
     context.outer_itlist = outer_itlist;
     context.inner_itlist = inner_itlist;
     context.skip_rel = skip_rel;
@@ -2086,7 +2166,7 @@ fix_join_expr_mutator(Node *node, fix_join_expr_context *context)
 		if (newvar)
 			return (Node *) newvar;
 	}
-	fix_expr_common(context->glob, node);
+	fix_expr_common(context->root, node);
 	return expression_tree_mutator(node,
 								   fix_join_expr_mutator,
 								   (void *) context);
@@ -2127,7 +2207,7 @@ fix_join_expr_mutator(Node *node, fix_join_expr_context *context)
  *     executor!
  */
 static Node *
-fix_upper_expr(PlannerGlobal *glob,
+fix_upper_expr(PlannerInfo *root,
 			   Node *node,
 			   indexed_tlist *subplan_itlist,
 			   int rtoffset,
@@ -2135,7 +2215,7 @@ fix_upper_expr(PlannerGlobal *glob,
 {
 	fix_upper_expr_context context;
 	
-	context.glob = glob;
+	context.root = root;
 	context.subplan_itlist = subplan_itlist;
 	context.rtoffset = rtoffset;
 	context.use_scan_slot = use_scan_slot;
@@ -2191,7 +2271,7 @@ fix_upper_expr_mutator(Node *node, fix_upper_expr_context *context)
 		if (newvar)
 			return (Node *) newvar;
 	}
-	fix_expr_common(context->glob, node);
+	fix_expr_common(context->root->glob, node);
 	return expression_tree_mutator(node,
 								   fix_upper_expr_mutator,
 								   (void *) context);
@@ -2523,7 +2603,7 @@ cdb_expr_requires_full_eval(Node *node)
  * given node's targetlist.  Returns the new Result node.
  */
 Plan *
-cdb_insert_result_node(PlannerGlobal *glob, Plan *plan, int rtoffset)
+cdb_insert_result_node(PlannerInfo *root, Plan *plan, int rtoffset)
 {
     Plan   *resultplan;
     Flow   *flow;
@@ -2542,7 +2622,7 @@ cdb_insert_result_node(PlannerGlobal *glob, Plan *plan, int rtoffset)
     plan->targetlist = flatten_tlist(plan->targetlist);
 	
     /* Fix up the Result node and the Plan tree below it. */
-    resultplan = set_plan_refs(glob, resultplan, rtoffset);
+    resultplan = set_plan_refs(root, resultplan, rtoffset);
 	
     /* Reattach the Flow node. */
     resultplan->flow = flow;

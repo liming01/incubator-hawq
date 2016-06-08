@@ -152,6 +152,10 @@ extern int pxf_calc_participating_segments(int total_segments);
 
 extern SubqueryScan *make_subqueryscan(PlannerInfo *root, List *qptlist, List *qpqual,
 				  Index scanrelid, Plan *subplan, List *subrtable);
+extern ForeignScan *make_foreignscan(List *qptlist, List *qpqual,
+				 Index scanrelid, List *fdw_exprs, List *fdw_private,
+				 List *fdw_scan_tlist, List *fdw_recheck_quals,
+				 Plan *outer_plan);
 extern Append *make_append(List *appendplans, bool isTarget, List *tlist);
 extern Sort *make_sort_from_sortclauses(PlannerInfo *root, List *sortcls,
 						   Plan *lefttree);
@@ -254,7 +258,7 @@ extern void distribute_qual_to_rels(PlannerInfo *root, Node *clause,
  * prototypes for plan/setrefs.c
  */
 Plan *
-set_plan_references(PlannerGlobal *glob, Plan *plan, List *rtable);
+set_plan_references(PlannerInfo *root, Plan *plan, List *rtable);
 
 List *
 set_returning_clause_references(PlannerGlobal *glob,
