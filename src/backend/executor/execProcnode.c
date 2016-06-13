@@ -110,6 +110,7 @@
 #include "executor/nodeBitmapTableScan.h"
 #include "executor/nodeBitmapOr.h"
 #include "executor/nodeExternalscan.h"
+#include "executor/nodeforeignscan.h"
 #include "executor/nodeTableScan.h"
 #include "executor/nodeDML.h"
 #include "executor/nodeDynamicIndexscan.h"
@@ -477,6 +478,17 @@ ExecInitNode(Plan *node, EState *estate, int eflags)
 			{
 			result = (PlanState *) ExecInitValuesScan((ValuesScan *) node,
 													  estate, eflags);
+			}
+			END_MEMORY_ACCOUNT();
+			break;
+
+		case T_ForeignScan:
+			curMemoryAccount = CREATE_EXECUTOR_MEMORY_ACCOUNT(isAlienPlanNode, node, ForeignScan);
+
+			START_MEMORY_ACCOUNT(curMemoryAccount);
+			{
+			result = (PlanState *) ExecInitForeignScan((ForeignScan *) node,
+														estate, eflags);
 			}
 			END_MEMORY_ACCOUNT();
 			break;
@@ -1340,6 +1352,7 @@ ExecCountSlotsNode(Plan *node)
 		case T_AppendOnlyScan:
 		case T_ParquetScan:
 		case T_TableScan:
+		case T_ForeignScan:
 			return ExecCountSlotsTableScan((TableScan *) node);
 
 		case T_DynamicTableScan:

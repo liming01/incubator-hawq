@@ -529,6 +529,8 @@ char * plannode_type(Plan *p)
 			return "FUNCTIONSCAN";
 		case T_ValuesScan:
 			return "VALUESSCAN";
+		case T_ForeignScan:
+			return "FOREIGNSCAN";
 		case T_BitmapTableScan:
 			return "BITMAPTABLESCAN";
 		case T_Join:

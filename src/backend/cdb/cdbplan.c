@@ -478,6 +478,25 @@ plan_tree_mutator(Node *node,
 			}
 			break;
 
+		case T_ForeignScan:
+			{
+				ForeignScan    *foreign= (ForeignScan *) node;
+				ForeignScan    *newforeign;
+
+				FLATCOPY(newforeign, foreign, ForeignScan);
+				SCANMUTATE(newforeign, foreign);
+				newforeign->fs_server = foreign->fs_server;
+				MUTATE(newforeign->fdw_exprs, foreign->fdw_exprs, List*);
+				MUTATE(newforeign->fdw_private, foreign->fdw_private, List*);
+				MUTATE(newforeign->fdw_scan_tlist, foreign->fdw_scan_tlist, List*);
+				MUTATE(newforeign->fdw_recheck_quals, foreign->fdw_recheck_quals, List*);
+				MUTATE(newforeign->fs_relids, foreign->fs_relids, Bitmapset*);
+				newforeign->fsSystemCol = foreign->fsSystemCol;
+
+				return (Node *) newforeign;
+			}
+			break;
+
 		case T_Join:
 			/* Abstract: Should see only subclasses. */
 			elog(ERROR, "abstract node type not allowed: T_Join");

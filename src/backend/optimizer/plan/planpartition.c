@@ -785,6 +785,7 @@ AdjustVarnoWalker(Node *node, AdjustVarnoContext *ctx)
 		case T_TidScan:
 		case T_FunctionScan:
 		case T_ValuesScan:
+        case T_ForeignScan:
 		case T_SubqueryScan:
 		case T_TableFunctionScan:
 		{

@@ -736,11 +736,11 @@ _outValuesScan(StringInfo str, ValuesScan *node)
 }
 
 static void
-_outForeignScan(StringInfo str, const ForeignScan *node)
+_outForeignScan(StringInfo str, ForeignScan *node)
 {
 	WRITE_NODE_TYPE("FOREIGNSCAN");
 
-	_outScanInfo(str, (const Scan *) node);
+	_outScanInfo(str, (Scan *) node);
 
 	WRITE_OID_FIELD(fs_server);
 	WRITE_NODE_FIELD(fdw_exprs);

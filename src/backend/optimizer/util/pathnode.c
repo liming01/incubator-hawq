@@ -249,6 +249,7 @@ pathnode_walk_kids(Path            *path,
             case T_FunctionScan:
             case T_ValuesScan:
             case T_CteScan:
+            case T_ForeignScan:
             case T_TableFunctionScan:
                     return CdbVisit_Walk;
             case T_BitmapHeapScan:

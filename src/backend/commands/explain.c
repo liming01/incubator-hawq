@@ -1182,6 +1182,9 @@ explain_outNode(StringInfo str,
 		case T_ValuesScan:
 			pname = "Values Scan";
 			break;
+		case T_ForeignScan:
+			pname = "Foreign Scan";
+			break;
 		case T_ShareInputScan:
 			{
 				ShareInputScan *sisc = (ShareInputScan *) plan;
@@ -1343,6 +1346,7 @@ explain_outNode(StringInfo str,
 			/* FALL THRU */
 		case T_SeqScan:
 		case T_ExternalScan:
+		case T_ForeignScan:
 		case T_AppendOnlyScan:
 		case T_ParquetScan:
 		case T_TableScan:
@@ -1552,6 +1556,7 @@ explain_outNode(StringInfo str,
 			/* FALL THRU */
 		case T_SeqScan:
 		case T_ExternalScan:
+		case T_ForeignScan:
 		case T_AppendOnlyScan:
 		case T_ParquetScan:
 		case T_TableScan:

@@ -250,6 +250,7 @@ create_subplan(CreatePlanContext *ctx, Path *best_path)
 		case T_TableFunctionScan:
         case T_ValuesScan:
 		case T_CteScan:
+        case T_ForeignScan:
 			plan = create_scan_plan(ctx, best_path);
 			break;
 		case T_HashJoin:
@@ -562,6 +563,7 @@ disuse_physical_tlist(Plan *plan, Path *path)
 		case T_SubqueryScan:
 		case T_FunctionScan:
 		case T_ValuesScan:
+        case T_ForeignScan:
 			{
 				plan->targetlist = build_relation_tlist(path->parent);
 				/**

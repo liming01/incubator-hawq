@@ -482,6 +482,7 @@ AssignContentIdsToPlanData_Walker(Node *node, void *context)
 				break;
 
 			case T_ExternalScan:
+			case T_ForeignScan:
 				DisableTargetedDispatch(&dispatchInfo); /* not sure about external tables ... so disable */
 				break;
 

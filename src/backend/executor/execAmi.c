@@ -307,6 +307,10 @@ ExecMarkPos(PlanState *node)
 			ExecValuesMarkPos((ValuesScanState *) node);
 			break;
 
+		case T_ForeignScanState:
+			elog(ERROR, "Marking scan position for foreign table is not supported");
+			break;
+
 		case T_MaterialState:
 			ExecMaterialMarkPos((MaterialState *) node);
 			break;
@@ -384,6 +388,10 @@ ExecRestrPos(PlanState *node)
 
 		case T_ValuesScanState:
 			ExecValuesRestrPos((ValuesScanState *) node);
+			break;
+
+		case T_ForeignScanState:
+			elog(ERROR, "Restoring scan position is not yet supported for foreign table scan");
 			break;
 
 		case T_MaterialState:
@@ -626,7 +634,8 @@ ExecEagerFree(PlanState *node)
 		case T_SeqScanState:
 		case T_AppendOnlyScanState:
 		case T_ParquetScanState:
-			insist_log(false, "SeqScan/AppendOnlyScan/ParquetScan are defunct");
+		case T_ForeignScanState:
+			insist_log(false, "SeqScan/AppendOnlyScan/ParquetScan/ForeignScan are defunct");
 			break;
 			
 		case T_ExternalScanState:
@@ -797,7 +806,8 @@ ExecEagerFreeChildNodes(PlanState *node, bool subplanDone)
 		case T_SeqScanState:
 		case T_AppendOnlyScanState:
 		case T_ParquetScanState:
-			insist_log(false, "SeqScan/AppendOnlyScan/ParquetScan are defunct");
+		case T_ForeignScanState:
+			insist_log(false, "SeqScan/AppendOnlyScan/ParquetScan/ForeignScan are defunct");
 			break;
 
 		case T_NestLoopState:

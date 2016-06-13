@@ -378,6 +378,8 @@ MemoryAccounting_GetAccountName(MemoryAccount *memoryAccount)
 			return "X_TableFunctionScan";
 		case MEMORY_OWNER_TYPE_Exec_ValuesScan:
 			return "X_ValuesScan";
+		case MEMORY_OWNER_TYPE_Exec_ForeignScan:
+			return "X_ForeignScan";
 		case MEMORY_OWNER_TYPE_Exec_NestLoop:
 			return "X_NestLoop";
 		case MEMORY_OWNER_TYPE_Exec_MergeJoin:

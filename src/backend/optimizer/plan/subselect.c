@@ -1340,6 +1340,7 @@ finalize_plan(PlannerInfo *root, Plan *plan, List *rtable,
 		case T_AppendOnlyScan:
 		case T_ParquetScan:
 		case T_ExternalScan:
+        case T_ForeignScan:
 		case T_Material:
 		case T_Sort:
 		case T_ShareInputScan:

@@ -3262,6 +3262,26 @@ _readValuesScan(const char ** str)
 
 	READ_DONE();
 }
+/*
+ * _readForeignScan
+ */
+static ForeignScan *
+_readForeignScan(const char ** str)
+{
+	READ_LOCALS(ForeignScan);
+
+	readScanInfo(str, (Scan *)local_node);
+
+	READ_OID_FIELD(fs_server);
+	READ_NODE_FIELD(fdw_exprs);
+	READ_NODE_FIELD(fdw_private);
+	READ_NODE_FIELD(fdw_scan_tlist);
+	READ_NODE_FIELD(fdw_recheck_quals);
+	READ_BITMAPSET_FIELD(fs_relids);
+	READ_BOOL_FIELD(fsSystemCol);
+
+	READ_DONE();
+}
 
 /*
  * _readJoin
@@ -4269,6 +4289,9 @@ readNodeBinary(const char ** str)
 				break;
 			case T_ValuesScan:
 				return_value = _readValuesScan(str);
+				break;
+			case T_ForeignScan:
+				return_value = _readForeignScan(str);
 				break;
 			case T_Join:
 				return_value = _readJoin(str);

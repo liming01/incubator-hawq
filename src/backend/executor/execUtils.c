@@ -2347,6 +2347,7 @@ void (*initGpmonPktFuncs[])(Plan *planNode, gpmon_packet_t *gpmon_pkt, EState *e
 	&initGpmonPktForSubqueryScan, /* T_SubqueryScan */
 	&initGpmonPktForFunctionScan, /*  T_FunctionScan */
 	&initGpmonPktForValuesScan, /* T_ValuesScan */
+	&initGpmonPktForDefunctOperators, /* T_ForeignScan */
 	&initGpmonPktForNestLoop, /* T_NestLoop */
 	&initGpmonPktForMergeJoin, /* T_MergeJoin */
 	&initGpmonPktForHashJoin, /* T_HashJoin */
@@ -2472,6 +2473,7 @@ sendInitGpmonPkts(Plan *node, EState *estate)
 		case T_TidScan:
 		case T_FunctionScan:
 		case T_ValuesScan:
+		case T_ForeignScan:
 		{
 			initGpmonPktFuncs[nodeTag(node) - T_Plan_Start](node, &gpmon_pkt, estate);
 
