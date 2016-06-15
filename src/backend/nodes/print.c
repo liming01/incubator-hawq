@@ -267,8 +267,8 @@ print_rt(List *rtable)
 		switch (rte->rtekind)
 		{
 			case RTE_RELATION:
-				printf("%d\t%s\t%u",
-					   i, name, rte->relid);
+				printf("%d\t%s\t%u\t%c\t[relation]",
+					   i, name, rte->relid, rte->relstorage);
 				break;
 			case RTE_SUBQUERY:
 				printf("%d\t%s\t[subquery]",

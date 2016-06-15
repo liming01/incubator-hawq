@@ -324,7 +324,7 @@ get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
 	rel->indexlist = indexinfos;
 
 	/* Grab foreign-table info using the relcache, while we have it */
-	if (relation->rd_rel->relkind == RELKIND_FOREIGN_TABLE)
+	if (relation->rd_rel->relstorage == RELSTORAGE_FOREIGN)
 	{
 		rel->serverid = GetForeignServerIdByRelId(RelationGetRelid(relation));
 		rel->fdwroutine = GetFdwRoutineForRelation(relation, true);

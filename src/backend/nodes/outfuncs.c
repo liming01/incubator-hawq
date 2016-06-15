@@ -3581,6 +3581,7 @@ _outRangeTblEntry(StringInfo str, RangeTblEntry *node)
 		case RTE_RELATION:
 		case RTE_SPECIAL:
 			WRITE_OID_FIELD(relid);
+			WRITE_CHAR_FIELD(relstorage);
 			break;
 		case RTE_SUBQUERY:
 			WRITE_NODE_FIELD(subquery);
