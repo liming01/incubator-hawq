@@ -26,6 +26,10 @@
 
 PG_MODULE_MAGIC;
 
+typedef struct HelloFdwExecutionState {
+  int rownum;
+} HelloFdwExecutionState;
+
 extern Datum hello_world_fdw_handler(PG_FUNCTION_ARGS);
 extern Datum hello_world_fdw_validator(PG_FUNCTION_ARGS);
 
@@ -33,7 +37,6 @@ PG_FUNCTION_INFO_V1(hello_world_fdw_handler);
 PG_FUNCTION_INFO_V1(hello_world_fdw_validator);
 
 static void hwGetForeignRelSize(PlannerInfo*, RelOptInfo*, Oid);
-/*
 static void hwGetForeignPaths(PlannerInfo*, RelOptInfo *baserel, Oid foreigntableid);
 static ForeignScan *hwGetForeignPlan(PlannerInfo*, RelOptInfo*, Oid, ForeignPath*, List*, List*);
 static void hwExplainForeignScan(ForeignScanState*, struct ExplainState*);
@@ -41,12 +44,10 @@ static void hwBeginForeignScan(ForeignScanState*, int);
 static TupleTableSlot *hwIterateForeignScan(ForeignScanState*);
 static void hwReScanForeignScan(ForeignScanState*);
 static void hwEndForeignScan(ForeignScanState*);
-*/
 
 Datum hello_world_fdw_handler(PG_FUNCTION_ARGS) {
   FdwRoutine *fdwroutine = makeNode(FdwRoutine);
   fdwroutine->GetForeignRelSize = hwGetForeignRelSize;
-  /*
   fdwroutine->GetForeignPaths = hwGetForeignPaths;
   fdwroutine->GetForeignPlan = hwGetForeignPlan;
   fdwroutine->ExplainForeignScan = hwExplainForeignScan;
@@ -54,7 +55,6 @@ Datum hello_world_fdw_handler(PG_FUNCTION_ARGS) {
   fdwroutine->IterateForeignScan = hwIterateForeignScan;
   fdwroutine->ReScanForeignScan = hwReScanForeignScan;
   fdwroutine->EndForeignScan = hwEndForeignScan;
-  */
   PG_RETURN_POINTER(fdwroutine);
 }
 
@@ -70,14 +70,11 @@ hwGetForeignRelSize(PlannerInfo *root,
   baserel->width = 11;
 }
 
-/*
 static void
 hwGetForeignPaths(PlannerInfo *root,
                   RelOptInfo *baserel,
                   Oid foreigntableid) {}
-*/
 
-/*
 static ForeignScan *
 hwGetForeignPlan(PlannerInfo *root,
                  RelOptInfo *baserel,
@@ -90,27 +87,24 @@ hwGetForeignPlan(PlannerInfo *root,
                           scan_clauses,
                           baserel->relid,
                           NIL,
-                          best_path->fdw_private);
+                          best_path->fdw_private,
+                          NIL,
+                          NIL,
+                          NIL);
 }
-*/
 
-/*
 static void
 hwExplainForeignScan(ForeignScanState *node,
                      struct ExplainState *es) {
-  ExplainPropertyText("Hello", "World", es);
+  //ExplainPropertyText("Hello", "World", es);
 }
-*/
 
-/*
 static void
 hwBeginForeignScan(ForeignScanState *node,
                    int eflags) {
   if(eflags & EXEC_FLAG_EXPLAIN_ONLY) return;
 }
-*/
 
-/*
 static TupleTableSlot *
 hwIterateForeignScan(ForeignScanState *node) {
   TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
@@ -152,20 +146,15 @@ hwIterateForeignScan(ForeignScanState *node) {
   }
 
   tuple = BuildTupleFromCStrings(attinmeta, values);
-  ExecStoreTuple(tuple, slot, InvalidBuffer, true);
+  ExecStoreGenericTuple(tuple, slot, true);
 
   hestate->rownum++;
 
   return slot;
 }
-*/
 
-/*
 static void
 hwReScanForeignScan(ForeignScanState *node) {}
-*/
 
-/*
 static void
 hwEndForeignScan(ForeignScanState *node) {}
-*/
