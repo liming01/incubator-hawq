@@ -73,7 +73,20 @@ hwGetForeignRelSize(PlannerInfo *root,
 static void
 hwGetForeignPaths(PlannerInfo *root,
                   RelOptInfo *baserel,
-                  Oid foreigntableid) {}
+                  Oid foreigntableid) {
+  add_path(root,
+           baserel,
+           (Path*) create_foreignscan_path(root,
+                                           baserel,
+                                           baserel->rows,
+                                           10, /* startup_cost */
+                                           1000, /* total_cost */
+                                           NIL, /* no pathkeys */
+                                           NULL, /* no outer rel either */
+                                           NULL,
+                                           NULL));
+
+}
 
 static ForeignScan *
 hwGetForeignPlan(PlannerInfo *root,
@@ -102,7 +115,12 @@ hwExplainForeignScan(ForeignScanState *node,
 static void
 hwBeginForeignScan(ForeignScanState *node,
                    int eflags) {
+  HelloFdwExecutionState *hestate;
   if(eflags & EXEC_FLAG_EXPLAIN_ONLY) return;
+  hestate = (HelloFdwExecutionState *) palloc(sizeof(HelloFdwExecutionState));
+  hestate->rownum = 0;
+
+  node->fdw_state = (void *) hestate;
 }
 
 static TupleTableSlot *
@@ -154,7 +172,10 @@ hwIterateForeignScan(ForeignScanState *node) {
 }
 
 static void
-hwReScanForeignScan(ForeignScanState *node) {}
+hwReScanForeignScan(ForeignScanState *node) {
+  HelloFdwExecutionState *hestate = (HelloFdwExecutionState *) node->fdw_state;
+  hestate->rownum = 0;
+}
 
 static void
 hwEndForeignScan(ForeignScanState *node) {}
