@@ -74,17 +74,20 @@ static void
 hwGetForeignPaths(PlannerInfo *root,
                   RelOptInfo *baserel,
                   Oid foreigntableid) {
-  add_path(root,
-           baserel,
-           (Path*) create_foreignscan_path(root,
-                                           baserel,
-                                           baserel->rows,
-                                           10, /* startup_cost */
-                                           1000, /* total_cost */
-                                           NIL, /* no pathkeys */
-                                           NULL, /* no outer rel either */
-                                           NULL,
-                                           NULL));
+	ForeignPath *path;
+
+	path = (Path*) create_foreignscan_path(root,
+            baserel,
+            baserel->rows,
+            10, /* startup_cost */
+            1000, /* total_cost */
+            NIL, /* no pathkeys */
+            NULL, /* no outer rel either */
+            NULL,
+            NULL);
+
+  add_path(root, baserel, path);
+  set_cheapest(root, baserel);
 
 }
 
