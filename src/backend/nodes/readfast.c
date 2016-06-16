@@ -1969,6 +1969,7 @@ _readRangeTblEntry(const char ** str)
 		case RTE_RELATION:
 		case RTE_SPECIAL:
 			READ_OID_FIELD(relid);
+			READ_CHAR_FIELD(relstorage);
 			break;
 		case RTE_SUBQUERY:
 			READ_NODE_FIELD(subquery);

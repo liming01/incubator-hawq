@@ -65,6 +65,12 @@ extern void add_path(PlannerInfo *root, RelOptInfo *parent_rel, Path *new_path);
 
 extern Path *create_seqscan_path(PlannerInfo *root, RelOptInfo *rel);
 extern ExternalPath *create_external_path(PlannerInfo *root, RelOptInfo *rel);
+extern ForeignPath *create_foreignscan_path(PlannerInfo *root, RelOptInfo *rel,
+						double rows, Cost startup_cost, Cost total_cost,
+						List *pathkeys,
+						Relids required_outer,
+						Path *fdw_outerpath,
+						List *fdw_private);
 extern AppendOnlyPath *create_appendonly_path(PlannerInfo *root, RelOptInfo *rel);
 extern ParquetPath *create_parquet_path(PlannerInfo *root, RelOptInfo *rel);
 extern IndexPath *create_index_path(PlannerInfo *root,

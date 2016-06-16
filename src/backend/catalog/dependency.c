@@ -1141,6 +1141,7 @@ recordDependencyOnSingleRelExpr(const ObjectAddress *depender,
 	rte.type = T_RangeTblEntry;
 	rte.rtekind = RTE_RELATION;
 	rte.relid = relId;
+	rte.relstorage = RELSTORAGE_VIRTUAL;		/* no need for exactness here */
 
 	context.rtables = list_make1(list_make1(&rte));
 

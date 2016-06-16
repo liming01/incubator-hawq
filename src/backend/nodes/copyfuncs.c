@@ -2111,6 +2111,7 @@ _copyRangeTblEntry(RangeTblEntry *from)
 
 	COPY_SCALAR_FIELD(rtekind);
 	COPY_SCALAR_FIELD(relid);
+	COPY_SCALAR_FIELD(relstorage);
 	COPY_NODE_FIELD(subquery);
 	COPY_NODE_FIELD(funcexpr);
 	COPY_NODE_FIELD(funccoltypes);

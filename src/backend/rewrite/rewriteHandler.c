@@ -183,6 +183,12 @@ AcquireRewriteLocks(Query *parsetree)
 					rel = heap_open(rte->relid, lockmode);
 				}
 
+				/*
+				 * While we have the relation open, update the RTE's relkind,
+				 * just in case it changed since this rule was made.
+				 */
+				rte->relstorage = rel->rd_rel->relstorage;
+
                 /* Close the relcache entry without releasing the lock. */
                 heap_close(rel, NoLock);
 				break;

@@ -670,6 +670,7 @@ typedef struct RangeTblEntry
 	 * Fields valid for a plain relation RTE (else zero):
 	 */
 	Oid			relid;			/* OID of the relation */
+	char		relstorage;		/* relation storage kind (see pg_class.relstorage) */
 
 	/*
 	 * Fields valid for a subquery RTE (else NULL):

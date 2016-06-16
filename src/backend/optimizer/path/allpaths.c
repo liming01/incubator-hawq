@@ -262,7 +262,14 @@ set_rel_pathlist(PlannerInfo *root, RelOptInfo *rel, Index rti)
 	{
 		/* Plain relation */
 		Assert(rel->rtekind == RTE_RELATION);
-		set_plain_rel_pathlist(root, rel, rte);
+		if (rte->relstorage == RELSTORAGE_FOREIGN)
+		{
+			/* Foreign table */
+			set_foreign_pathlist(root, rel, rte);
+		}else
+		{
+			set_plain_rel_pathlist(root, rel, rte);
+		}
 	}
 
 #ifdef OPTIMIZER_DEBUG
