@@ -490,7 +490,7 @@ plan_tree_mutator(Node *node,
 				MUTATE(newforeign->fdw_private, foreign->fdw_private, List*);
 				MUTATE(newforeign->fdw_scan_tlist, foreign->fdw_scan_tlist, List*);
 				MUTATE(newforeign->fdw_recheck_quals, foreign->fdw_recheck_quals, List*);
-				MUTATE(newforeign->fs_relids, foreign->fs_relids, Bitmapset*);
+				newforeign->fs_relids = foreign->fs_relids;
 				newforeign->fsSystemCol = foreign->fsSystemCol;
 
 				return (Node *) newforeign;
