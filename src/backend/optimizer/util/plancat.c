@@ -47,6 +47,7 @@
 #include "catalog/pg_type.h"
 #include "cdb/cdbanalyze.h"
 #include "commands/tablecmds.h"
+#include "foreign/fdwapi.h"
 #include "nodes/makefuncs.h"
 #include "optimizer/clauses.h"
 #include "optimizer/plancat.h"
