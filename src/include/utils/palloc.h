@@ -166,12 +166,13 @@ MemoryContextSwitchTo(MemoryContext context)
  * These are like standard strdup() except the copied string is
  * allocated in a context, not with malloc().
  */
-extern char * __attribute__((malloc)) MemoryContextStrdup(MemoryContext context, const char *string);
-extern void MemoryContextStats(MemoryContext context);
-
-#define pstrdup(str)  MemoryContextStrdup(CurrentMemoryContext, (str))
-
+extern char *MemoryContextStrdup(MemoryContext context, const char *string);
+extern char *pstrdup(const char *in);
 extern char *pnstrdup(const char *in, Size len);
+
+/* sprintf into a palloc'd buffer --- these are in psprintf.c */
+extern char *psprintf(const char *fmt,...) pg_attribute_printf(1, 2);
+extern size_t pvsnprintf(char *buf, size_t len, const char *fmt, va_list args) pg_attribute_printf(3, 0);
 
 #if defined(WIN32) || defined(__CYGWIN__)
 extern void *pgport_palloc(Size sz);

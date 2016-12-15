@@ -628,6 +628,48 @@ typedef NameData *Name;
 #define DOUBLEALIGN_DOWN(LEN)	TYPEALIGN_DOWN(ALIGNOF_DOUBLE, (LEN))
 #define MAXALIGN_DOWN(LEN)		TYPEALIGN_DOWN(MAXIMUM_ALIGNOF, (LEN))
 
+/* ----------------
+ * Attribute macros
+ *
+ * GCC: https://gcc.gnu.org/onlinedocs/gcc/Function-Attributes.html
+ * GCC: https://gcc.gnu.org/onlinedocs/gcc/Type-Attributes.html
+ * Sunpro: https://docs.oracle.com/cd/E18659_01/html/821-1384/gjzke.html
+ * XLC: http://www-01.ibm.com/support/knowledgecenter/SSGH2K_11.1.0/com.ibm.xlc111.aix.doc/language_ref/function_attributes.html
+ * XLC: http://www-01.ibm.com/support/knowledgecenter/SSGH2K_11.1.0/com.ibm.xlc111.aix.doc/language_ref/type_attrib.html
+ * ----------------
+ */
+
+/* only GCC supports the unused attribute */
+#ifdef __GNUC__
+#define pg_attribute_unused() __attribute__((unused))
+#else
+#define pg_attribute_unused()
+#endif
+
+/* GCC and XLC support format attributes */
+#if defined(__GNUC__) || defined(__IBMC__)
+#define pg_attribute_format_arg(a) __attribute__((format_arg(a)))
+#define pg_attribute_printf(f,a) __attribute__((format(PG_PRINTF_ATTRIBUTE, f, a)))
+#else
+#define pg_attribute_format_arg(a)
+#define pg_attribute_printf(f,a)
+#endif
+
+/* GCC, Sunpro and XLC support aligned, packed and noreturn */
+#if defined(__GNUC__) || defined(__SUNPRO_C) || defined(__IBMC__)
+#define pg_attribute_aligned(a) __attribute__((aligned(a)))
+#define pg_attribute_noreturn() __attribute__((noreturn))
+#define pg_attribute_packed() __attribute__((packed))
+#define HAVE_PG_ATTRIBUTE_NORETURN 1
+#else
+/*
+ * NB: aligned and packed are not given default definitions because they
+ * affect code functionality; they *must* be implemented by the compiler
+ * if they are to be used.
+ */
+#define pg_attribute_noreturn()
+#endif
+
 /* ----------------------------------------------------------------
  *				Section 6:	widely useful macros
  * ----------------------------------------------------------------

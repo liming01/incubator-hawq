@@ -16,6 +16,7 @@
 
 #include "catalog/pg_magic_oid.h"
 #include "catalog/pg_type.h"
+#include "postgres.h"
 
 /*
  * check to see if the ATT'th bit of an array of 8-bit bytes is set.

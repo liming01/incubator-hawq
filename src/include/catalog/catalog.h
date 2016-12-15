@@ -17,6 +17,10 @@
 #include "utils/relcache.h"
 #include "utils/rel.h"
 
+#define OIDCHARS		10		/* max chars printed by %u */
+#define TABLESPACE_VERSION_DIRECTORY	"PG_" PG_MAJORVERSION "_" \
+									CppAsString2(CATALOG_VERSION_NO)
+
 extern void GetFilespacePathPrefix(Oid tablespaceOid, char **pathPattern);
 extern void GetFilespacePathForTablespace(Oid tablespaceOid, char **filespacePath);
 extern char *relpath(RelFileNode rnode);

@@ -555,6 +555,18 @@ static void SimExProcExit(void);
 static void reg_reply(DNSServiceRegistrationReplyErrorType errorCode,
 		  void *context);
 #endif
+
+#ifdef PGXC
+char			*PGXCNodeName = NULL;
+int			PGXCNodeId = 0;
+/*
+ * When a particular node starts up, store the node identifier in this variable
+ * so that we dont have to calculate it OR do a search in cache any where else
+ * This will have minimal impact on performance
+ */
+uint32			PGXCNodeIdentifier = 0;
+#endif
+
 static void pmdaemonize(void);
 static Port *ConnCreate(int serverFd);
 static void ConnFree(Port *port);

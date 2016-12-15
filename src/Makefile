@@ -14,6 +14,7 @@ include Makefile.global
 
 
 all install installdirs uninstall distprep:
+	$(MAKE) -C common $@
 	$(MAKE) -C port $@
 	$(MAKE) -C timezone $@
 	$(MAKE) -C backend $@
@@ -52,6 +53,7 @@ uninstall-local:
 	rm -f $(addprefix '$(DESTDIR)$(pgxsdir)/$(subdir)'/, Makefile.global Makefile.port Makefile.shlib nls-global.mk)
 
 clean:
+	$(MAKE) -C common $@
 	$(MAKE) -C port $@
 	$(MAKE) -C timezone $@
 	$(MAKE) -C backend $@
@@ -68,6 +70,7 @@ clean:
 	$(MAKE) -C tools/fsync $@
 
 distclean maintainer-clean:
+	$(MAKE) -C common $@
 	$(MAKE) -C port $@
 	$(MAKE) -C timezone $@
 	$(MAKE) -C backend $@

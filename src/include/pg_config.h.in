@@ -744,6 +744,9 @@
 /* PostgreSQL major version as a string */
 #undef PG_MAJORVERSION
 
+/* Define to gnu_printf if compiler supports it, else printf. */
+#undef PG_PRINTF_ATTRIBUTE
+
 /* Postgres version HAWQ is based on */
 #undef PG_VERSION
 

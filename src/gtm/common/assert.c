@@ -26,7 +26,7 @@ bool assert_enabled = false;
 /*
  * ExceptionalCondition - Handles the failure of an Assert()
  */
-void
+int
 ExceptionalCondition(const char *conditionName,
 					 const char *errorType,
 					 const char *fileName,
@@ -47,4 +47,5 @@ ExceptionalCondition(const char *conditionName,
 	fflush(stderr);
 
 	abort();
+	return 0;
 }
